@@ -23,3 +23,9 @@ QT4A (Quick Test for Android)，基于QTA提供面向Android应用的UI测试自
 5. 支持自定义控件（如果有代码混淆需要mapping文件）
   
 QT4A需要和[QTAF](https://github.com/Tencent/QTAF)一起使用，请先参考QTAF的使用
+
+------------------------------
+
+欢迎加入QQ群（432699528）交流使用和反馈
+
+![image](https://github.com/Tencent/QTAF/blob/master/docs/misc/qq_group.png)
