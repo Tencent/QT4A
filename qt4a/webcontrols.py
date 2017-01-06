@@ -40,6 +40,8 @@ else:
         try:
             from tuia._autoweb import XPath
             break
+        except ImportError:
+            raise
         except Exception, e:
             if 'CoInitialize' in str(e):
                 import pythoncom

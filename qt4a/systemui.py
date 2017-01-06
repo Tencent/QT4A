@@ -20,7 +20,6 @@ import os
 from qpath import QPath
 from andrcontrols import Window, WebView, View, TextView, EditText, ImageView, ScrollView, ListView, Button, RelativeLayout, GridView
 from tuia.exceptions import ControlNotFoundError
-from webcontrols import WebPage, WebElement
 
 def get_file_md5(filepath):
     '''计算文件MD5值
@@ -217,24 +216,7 @@ class TitleBar(RelativeLayout):
 class UrlInputView(EditText):
     pass
 
-class BrowserWindow(Window):
-    '''Android自带浏览器窗口
-    '''
-    Activity = 'com.android.browser.BrowserActivity'
 
-    def __init__(self, app):
-        super(BrowserWindow, self).__init__(app)
-        self.updateLocator({'标题栏': {'type': TitleBar, 'root': self, 'locator': QPath('/Id="main_content" /Instance="2"')},
-                            '地址栏': {'type': UrlInputView, 'root': '@标题栏', 'locator': QPath('/Id="url"')},
-                            'WebView': {'type': BrowserWebView, 'root': self, 'locator': QPath('/Id="webview_wrapper" /Instance="1"')},
-                            })
-
-class BrowserWebPage(WebPage):
-    '''浏览器页面基类
-    '''
-    def __init__(self, browser):
-        browser_window = BrowserWindow(browser)
-        super(BrowserWebPage, self).__init__(browser_window.Controls['WebView'])
 
 class PastePopup(Window):
     '''弹出式粘贴按钮
@@ -335,6 +317,29 @@ class AppNoResponseWindow(Window):
                             '确定': {'type': Button, 'root': self, 'locator': QPath('/Id="button1"')},
                             })
 
+class BrowserWindow(Window):
+    '''Android自带浏览器窗口
+    '''
+    Activity = 'com.android.browser.BrowserActivity'
 
+    def __init__(self, app):
+        super(BrowserWindow, self).__init__(app)
+        self.updateLocator({'标题栏': {'type': TitleBar, 'root': self, 'locator': QPath('/Id="main_content" /Instance="2"')},
+                            '地址栏': {'type': UrlInputView, 'root': '@标题栏', 'locator': QPath('/Id="url"')},
+                            'WebView': {'type': BrowserWebView, 'root': self, 'locator': QPath('/Id="webview_wrapper" /Instance="1"')},
+                            })
+        
+try:
+    from webcontrols import WebPage, WebElement
+except ImportError:
+    pass
+else:
+    class BrowserWebPage(WebPage):
+        '''浏览器页面基类
+        '''
+        def __init__(self, browser):
+            browser_window = BrowserWindow(browser)
+            super(BrowserWebPage, self).__init__(browser_window.Controls['WebView'])
+            
 if __name__ == '__main__':
     pass
