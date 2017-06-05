@@ -1677,7 +1677,7 @@ pre .javascript .function {
   width: 4px;
   height: 4px;
   border-radius: 50%;
-  background: #9c40c8;
+  background: #f06bb5;
 }
 .links-of-blogroll {
   font-size: 13px;
@@ -2777,7 +2777,7 @@ hr {
   display: inline-block;
   width: 100%;
   height: 100%;
-  background-image: url("/assets/android.png");
+  background-image: url("/QT4A/assets/android.png");
   background-size: 182px 130px;
   background-position: 25%;
   background-repeat: no-repeat;
@@ -2838,4 +2838,15 @@ hr {
   font-weight: normal;
   color: #0075bc;
   text-align: left;
+}
+#banner marquee {
+  width: 50%;
+  margin-left: 25%;
+  margin-top: 130px;
+}
+@media (max-width: 767px) {
+  #banner marquee {
+    width: 90%;
+    margin-left: 5%;
+  }
 }
