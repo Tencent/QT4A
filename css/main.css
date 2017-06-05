@@ -1677,7 +1677,7 @@ pre .javascript .function {
   width: 4px;
   height: 4px;
   border-radius: 50%;
-  background: #70ff57;
+  background: #9c40c8;
 }
 .links-of-blogroll {
   font-size: 13px;
@@ -2490,7 +2490,7 @@ hr {
 @media (max-width: 767px) {
   .header-inner {
     width: auto;
-    margin-bottom: 50px;
+    margin-bottom: 0px;
     padding: 10px;
   }
 }
@@ -2767,4 +2767,75 @@ hr {
     width: auto;
     text-align: center;
   }
+}
+#banner {
+  width: auto;
+  height: 160px;
+  background-image: url("http://opensource.tencent.com/img/title-bg.png");
+}
+#banner .banner_container {
+  display: inline-block;
+  width: 100%;
+  height: 100%;
+  background-image: url("/assets/android.png");
+  background-size: 182px 130px;
+  background-position: 25%;
+  background-repeat: no-repeat;
+  position: relative;
+}
+@media (max-width: 767px) {
+  #banner .banner_container {
+    background-position: 0px;
+  }
+}
+#banner .banner_content {
+  position: absolute;
+  margin-left: 20%;
+  width: 60%;
+  height: 100%;
+  text-align: center;
+  background: rgba(255,255,255,0.3);
+}
+@media (max-width: 767px) {
+  #banner .banner_content {
+    margin-left: 0%;
+    width: 100%;
+  }
+}
+#banner ul {
+  position: absolute;
+  margin-top: 10px;
+  white-space: nowrap;
+}
+#ul1 {
+  right: 300px;
+}
+@media (max-width: 767px) {
+  #ul1 {
+    right: 160px;
+  }
+}
+#ul2 {
+  right: 100px;
+}
+@media (max-width: 767px) {
+  #ul2 {
+    right: 20px;
+  }
+}
+#banner li {
+  list-style: none;
+  width: 100%;
+  font-size: 20px;
+  font-weight: bold;
+  color: #0075bc;
+  text-align: left;
+}
+#banner li a {
+  text-decoration: none;
+  border: none;
+  font-size: 15px;
+  font-weight: normal;
+  color: #0075bc;
+  text-align: left;
 }
