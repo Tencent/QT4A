@@ -55,4 +55,9 @@
         <feature_text>允许</feature_text>
         <click_text>允许</click_text>
     </rule>
+    <rule><!--vivo系统升级-->
+        <package>com.vivo.daemonService</package>
+        <feature_text>系统升级</feature_text>
+        <click_text>稍后</click_text>
+    </rule>
 </click_rules>
