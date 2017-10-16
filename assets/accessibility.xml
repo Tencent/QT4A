@@ -65,4 +65,9 @@
         <feature_text>系统升级</feature_text>
         <click_text>稍后提醒</click_text>
     </rule>
+    <rule><!--红米 Note 2授权弹框-->
+        <package>com.lbe.security.miui</package>
+        <feature_text>正在尝试</feature_text>
+        <click_text>允许</click_text>
+    </rule>
 </click_rules>
