@@ -2,9 +2,11 @@
 
 <enable_rules>
     <rule>
-	    <brand>vivo</brand>
+	<brand>vivo</brand>
         <version>21</version>
-		<brand>OPPO</brand>
+	<brand>OPPO</brand>
+        <version>21</version>
+	<brand>Xiaomi</brand>
         <version>21</version>
     </rule>	
 </enable_rules>
