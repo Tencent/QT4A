@@ -12,7 +12,7 @@
 <click_rules>
     <rule><!--vivo-->
         <package>android</package>
-        <feature_text>.*(权限请求).*</feature_text>
+        <feature_text>权限请求</feature_text>
         <click_text>允许</click_text>
     </rule>
     <rule><!--vivo安装应用前-->
