@@ -74,8 +74,7 @@
     </rule>
     <rule><!--vivo X9授权弹框,例如:是否允许QQ录音或通话录音？-->
         <package>com.coloros.safecenter</package>
-        <feature_text>.*(是否允许).+</feature_text>
+        <feature_text>(是否允许).+</feature_text>
         <click_text>允许</click_text>
     </rule>	
-	
 </click_rules>
