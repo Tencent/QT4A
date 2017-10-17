@@ -54,7 +54,7 @@
     </rule>
     <rule><!-- 魅族 5.1 -->
         <package>com.aliyun.mobile.permission</package>
-        <feature_text>.*(允许).+</feature_text>
+        <feature_text>允许</feature_text>
         <click_text>允许</click_text>
     </rule>
     <rule><!--vivo系统升级-->
