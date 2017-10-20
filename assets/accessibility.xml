@@ -79,7 +79,7 @@
     </rule>	
     <rule><!--M5 Note授权弹框,例如:QQ申请获取定位信息权限（还有例如：QQ申请通话及本地录音权限）-->
         <package>android</package>
-        <feature_text>.+(申请).+</feature_text>
+        <feature_text>.+(申请).+权限.*</feature_text>
         <click_text>允许</click_text>
     </rule>
      <rule><!--OPPO R9m授权弹框-->
