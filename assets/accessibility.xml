@@ -77,9 +77,14 @@
         <feature_text>(是否允许).+</feature_text>
         <click_text>允许</click_text>
     </rule>	
-    <rule><!--OPPO R9m授权弹框,例如:是否允许QQ录音或通话录音？-->
+    <rule><!--M5 Note授权弹框,例如:QQ申请获取定位信息权限-->
+        <package>android</package>
+        <feature_text>.+(申请获取).+</feature_text>
+        <click_text>允许</click_text>
+    </rule>
+     <rule><!--OPPO R9m授权弹框-->
         <package>com.coloros.safecenter</package>
         <feature_text>.+(想要读取).+</feature_text>
         <click_text>允许</click_text>
-    </rule>	
+    </rule>
 </click_rules>
