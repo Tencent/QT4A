@@ -87,7 +87,7 @@
         <feature_text>.+(想要读取).+</feature_text>
         <click_text>允许</click_text>
     </rule>
-    <rule><!--MI 6授权弹框-->
+    <rule><!--MI 6授权弹框,已验证通过-->
         <package>com.miui.securitycenter</package>
         <feature_text>USB安装提示</feature_text>
         <click_text>继续安装</click_text>
