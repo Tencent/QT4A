@@ -92,7 +92,7 @@
         <feature_text>USB安装提示</feature_text>
         <click_text>继续安装</click_text>
     </rule>
-    <rule><!--vivi安装安装包，应用市场会提示是否继续安装旧版本-->
+    <rule><!--vivo安装安装包，应用市场会提示是否继续安装旧版本-->
         <package>com.android.packageinstaller</package>
         <feature_text发现更新的官方版本.*</feature_text>
         <click_text>继续安装旧版本</click_text>
