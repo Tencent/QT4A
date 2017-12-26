@@ -97,9 +97,4 @@
         <feature_text>发现更新的官方版本.*</feature_text>
         <click_text>继续安装旧版本</click_text>
     </rule>
-    <rule><!--Xiaomi6安装安装包弹出框, MIUI9.0稳定版，jairodai手机-->
-        <package>com.google.android.packageinstaller</package>
-        <feature_text>USB安装提示</feature_text>
-        <click_text>继续安装</click_text>
-    </rule>
 </click_rules>
