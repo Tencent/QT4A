@@ -97,4 +97,9 @@
         <feature_text>发现更新的官方版本.*</feature_text>
         <click_text>继续安装旧版本</click_text>
     </rule>
+    <rule><!--vivo安装安装包，应用市场会提示是否继续安装旧版本,oppo R7s(jasonzxlin手机)-->
+        <package>com.android.packageinstaller</package>
+        <feature_text>安装新版本</feature_text>
+        <click_text>继续安装旧版本</click_text>
+    </rule>
 </click_rules>
