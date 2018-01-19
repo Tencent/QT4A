@@ -104,7 +104,7 @@
     </rule>
     <rule><!--vivo安装安装包，应用市场会提示是否继续安装旧版本,oppo R7s(jasonzxlin手机)-->
         <package>com.kingroot.kinguser</package>
-        <feature_text>正在安装.*</feature_text>
+        <feature_text>.*安装.*</feature_text>
         <click_text>确认安装</click_text>
     </rule>
 </click_rules>
