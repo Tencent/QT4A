@@ -12,6 +12,11 @@
 </enable_rules>
 
 <click_rules>
+    <rule><!--oppo权限弹窗-->
+        <package>android</package>
+        <feature_text>.*尝试.*</feature_text>
+        <click_text>允许</click_text>
+    </rule>
     <rule><!--vivo-->
         <package>android</package>
         <feature_text>权限请求</feature_text>
