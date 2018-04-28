@@ -8,6 +8,9 @@
         <version>21</version>
 	<brand>Xiaomi</brand>
         <version>21</version>
+	<brand>HUAWEI</brand>
+        <version>21</version>	    
+	    
     </rule>	
 </enable_rules>
 
