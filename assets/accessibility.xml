@@ -115,4 +115,9 @@
         <feature_text>未发现风险</feature_text>
         <click_text>确认安装</click_text>
     </rule>
+    <rule><!--华为手机-->
+        <package>com.huawei.systemmanager</package>
+        <feature_text>读取本机识别码</feature_text>
+        <click_text>允许</click_text>
+    </rule>
 </click_rules>
