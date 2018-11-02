@@ -1,5 +1,5 @@
 # -*- coding: UTF-8 -*-
-# 
+#
 # Tencent is pleased to support the open source community by making QTA available.
 # Copyright (C) 2016THL A29 Limited, a Tencent company. All rights reserved.
 # Licensed under the BSD 3-Clause License (the "License"); you may not use this 
@@ -11,19 +11,21 @@
 # under the License is distributed on an "AS IS" basis, WITHOUT WARRANTIES OR CONDITIONS
 # OF ANY KIND, either express or implied. See the License for the specific language
 # governing permissions and limitations under the License.
-# 
+#
 
 '''Android测试桩代理
 '''
 
-# 2013/5/13 apple 创建
-
-import sys
-import time
 import json
+import os
+import sys
+import tempfile
 import threading
-from clientsocket import AndroidSpyClient
-from util import logger, SocketError, AndroidSpyError, ControlExpiredError, Mutex
+import time
+
+from clientsocket import AndroidSpyClient, DirectAndroidSpyClient
+from devicedriver import DeviceDriver
+from util import logger, SocketError, AndroidSpyError, ControlExpiredError, ProcessExitError, Mutex, extract_from_zipfile
 
 class EnumCommand(object):
     '''所有支持的命令字
@@ -46,7 +48,6 @@ class EnumCommand(object):
     CmdSendKey = "SendKey"
     CmdClick = "Click"
     CmdDrag = "Drag"
-    CmdSensorEvent = "SensorEvent"
     CmdEnableSoftInput = "EnableSoftInput"
     CmdCloseActivity = "CloseActivity"
     CmdEvalScript = "EvalScript"
@@ -56,53 +57,68 @@ class EnumCommand(object):
     CmdGetControlBackground = "GetControlBackground"
     CmdGetControlImageResource = "GetControlImageResource"
     CmdGetSelectedTabIndex = "GetSelectedTabIndex"
+    CmdGetStaticFieldValue = "GetStaticFieldValue"
     CmdGetObjectFieldValue = "GetObjectFieldValue"
+    CmdCallStaticMethod = "CallStaticMethod"
     CmdCallObjectMethod = "CallObjectMethod"
     CmdCallExternalMethod = "CallExternalMethod"  # 调用外部jar包中的方法
     CmdSetActivityPopup = "SetActivityPopup"
     CmdSetThreadPriority = "SetThreadPriority"
+    CmdSetWebViewDebuggingEnabled = "SetWebViewDebuggingEnabled"
     
-def copy_android_driver(device_id='', force=False):
+def copy_android_driver(device_id_or_adb, force=False, root_path=None, enable_acc=True):
     '''测试前的测试桩拷贝
     '''
-    import os
     from adb import ADB
-    if not device_id:
+    from util import AndroidPackage, version_cmp
+    if not device_id_or_adb:
         device_list = ADB.list_device()
-        device_list = [dev for dev in device_list if dev[1] == 'device']
         if len(device_list) == 0:
             raise RuntimeError('当前没有插入手机')
         elif len(device_list) == 1:
-            device_id = device_list[0][0]
+            device_id = device_list[0]
         elif len(device_list) > 1:
-            i = 0
             text = '当前设备列表:\n'
-            for dev in device_list:
-                # if dev[1] != 'device': continue
-                i += 1
-                text += '%d. %s\n' % (i, dev[0])
-            print text
+            for i, dev in enumerate(device_list):
+                text += '%d. %s\n' % (i, dev)
+            print(text)
             while True:
+                print device_list
                 result = raw_input('请输入要拷贝测试桩的设备序号:')
                 if result.isdigit():
                     if int(result) > len(device_list):
-                        print >> sys.stderr, '序号范围为: [1, %d]' % len(device_list)
+                        sys.stderr.write('序号范围为: [1, %d]' % len(device_list))
                         time.sleep(0.1)
                         continue
-                    device_id = device_list[int(result) - 1][0]
+                    device_id = device_list[int(result) - 1]
                 else:
-                    if not result in [dev[0] for dev in device_list]:
-                        print >> sys.stderr, '设备序列号不存在: %r' % result
+                    if not result in device_list:
+                        sys.stderr.write('设备序列号不存在: %r' % result)
                         time.sleep(0.1)
                         continue
-                    device_id = result
+                    device_id_or_adb = result
                 break
-            print '您将向设备"%s"拷贝测试桩……' % device_id
-    adb = ADB.open_device(device_id)
-    cur_path = os.path.dirname(os.path.abspath(__file__))
+            print '您将向设备"%s"拷贝测试桩……' % device_id_or_adb
+    
+    if isinstance(device_id_or_adb, ADB):
+        adb = device_id_or_adb
+    else:
+        adb = ADB.open_device(device_id)
+    if not root_path: 
+        current_path = os.path.abspath(__file__)
+        if not os.path.exists(current_path) and '.egg' in current_path:
+            # in egg
+            egg_path = current_path
+            while not os.path.exists(egg_path):
+                egg_path = os.path.dirname(egg_path)
+            assert(egg_path.endswith('.egg'))
+            root_path = os.path.join(tempfile.mkdtemp(), 'tools')
+            extract_from_zipfile(egg_path, 'qt4a/androiddriver/tools', root_path)
+        else:
+            root_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'tools')
     dst_path = '/data/local/tmp/qt4a/'
 
-    current_version_file = os.path.join(cur_path, 'tools', 'version.txt')
+    current_version_file = os.path.join(root_path, 'version.txt')
     f = open(current_version_file, 'r')
     vurrent_version = int(f.read())
     f.close()
@@ -113,82 +129,151 @@ def copy_android_driver(device_id='', force=False):
     
         if version and not 'No such file or directory' in version and vurrent_version <= int(version):
             # 不需要拷贝测试桩
-            if not adb.get_package_path('com.test.qt4amockapp'):
-                logger.warn('install QT4AMockApp')
-                adb.install_apk(os.path.join(cur_path, 'tools', 'QT4AMockApp.apk'))
             logger.warn('忽略本次测试桩拷贝：当前版本为%s，设备中版本为%s' % (vurrent_version, version))
             return
     
-    if not adb.is_rooted():
-        result = adb.run_shell_cmd('id', True)
-        if not 'uid=0(root)' in result:
-            raise RuntimeError('设备未root：%s' % result)
+    try:
+        adb.chmod(dst_path[:-1], '777')
+    except:
+        pass
+    
+    rooted = adb.is_rooted()
         
     cpu_abi = adb.get_cpu_abi()
     print '当前系统的CPU架构为：%s' % cpu_abi
     use_pie = False
-    if adb.get_sdk_version() >= 21: use_pie = True
-    file_list = [os.path.join(cpu_abi, 'inject'), os.path.join(cpu_abi, 'libdexloader.so'), os.path.join(cpu_abi, 'setpropex'), os.path.join(cpu_abi, 'libandroidhook.so'), 'AndroidSpy.jar', 'androidhook.jar', 'SpyHelper.jar', 'SpyHelper.sh']
-    
-    if adb.is_selinux_opened():
+    if adb.get_sdk_version() >= 21 and cpu_abi != 'arm64-v8a': use_pie = True
+        
+    file_list = [os.path.join(cpu_abi, 'droid_inject'), os.path.join(cpu_abi, 'libdexloader.so'), os.path.join(cpu_abi, 'screenshot'), os.path.join(cpu_abi, 'libandroidhook.so'), 'inject', 'AndroidSpy.jar', 'SpyHelper.jar', 'SpyHelper.sh']
+
+    if cpu_abi == 'arm64-v8a':
+        file_list.append(os.path.join(cpu_abi, 'droid_inject64'))
+        file_list.append(os.path.join(cpu_abi, 'libdexloader64.so'))
+        file_list.append('inject64')
+    if adb.get_sdk_version() >= 21:
+        file_list.append(os.path.join(cpu_abi, 'libandroidhook_art.so'))
+        
+    if rooted and adb.is_selinux_opened():
         # 此时如果还是开启状态说明关闭selinux没有生效,主要是三星手机上面
-        adb.run_shell_cmd('chcon u:object_r:shell_data_file:s0 %slibdexloader.so' % dst_path, True)  # 恢复文件context，否则拷贝失败
-        adb.run_shell_cmd('chcon u:object_r:shell_data_file:s0 %slibandroidhook.so' % dst_path, True)
+        adb.run_shell_cmd('rm -r %s' % dst_path, True)
+        # adb.run_shell_cmd('chcon u:object_r:shell_data_file:s0 %slibdexloader.so' % dst_path, True)  # 恢复文件context，否则拷贝失败
+        # adb.run_shell_cmd('chcon u:object_r:shell_data_file:s0 %slibandroidhook.so' % dst_path, True)
         
     for file in file_list:
-        file_path = os.path.join(cur_path, 'tools', file)
-        if use_pie and not '.' in file: file_path += '_pie'
-        adb.push_file(file_path, dst_path + os.path.split(file)[-1])
-    dst_dir = dst_path[:dst_path.rfind('/')]
-    # adb.run_shell_cmd('chmod 777 %s' % dst_dir, True)
-    # logger.info(adb.run_shell_cmd('chmod 777 %sinject' % (dst_path), True))
-    adb.chmod('%sinject' % dst_path, 777)
-    # adb.run_shell_cmd('chmod 777 %sAndroidSpy.jar' % (dst_path), True)
+        file_path = os.path.join(root_path, file)
+        if use_pie and not '.' in file and os.path.exists(file_path + '_pie'): file_path += '_pie'
+        if not os.path.exists(file_path): continue
+        save_name = os.path.split(file)[-1]
+        if save_name.endswith('_art.so'): save_name = save_name.replace('_art', '')
+        adb.push_file(file_path, dst_path + save_name)
+        
+    adb.chmod('%sdroid_inject' % dst_path, 755)
+    adb.chmod('%sinject' % dst_path, 755)
+    adb.chmod('%sscreenshot' % dst_path, 755)
+    
+    if cpu_abi == 'arm64-v8a': 
+        adb.chmod('%sdroid_inject64' % dst_path, 755)
+        adb.chmod('%sinject64' % dst_path, 755)
+
     try:
-        print adb.run_shell_cmd('rm -R %scache' % dst_path, True)  # 删除目录 rm -rf
+        print adb.run_shell_cmd('rm -R %scache' % dst_path, rooted)  # 删除目录 rm -rf
     except RuntimeError, e:
         logger.warn('%s' % e)
     # logger.info(adb.run_shell_cmd('mkdir %scache' % (dst_path), True)) #必须使用root权限，不然生成odex文件会失败
-    # logger.info(adb.run_shell_cmd('chmod 777 %scache' % dst_path, True))
-    # adb.chmod('%scache' % dst_path, 777)
-    adb.mkdir('%scache' % (dst_path), 777)
-    logger.info(adb.run_shell_cmd('sh %sSpyHelper.sh loadDex %sAndroidSpy.jar %scache' % (dst_path, dst_path, dst_path), True))
-    # logger.info(adb.run_shell_cmd('chmod 777 %ssetpropex' % dst_path, True))
-    adb.chmod('%ssetpropex' % dst_path, 777)
-    logger.info(adb.run_shell_cmd('.%ssetpropex ro.secure 0' % dst_path, True))
 
-    adb.install_apk(os.path.join(cur_path, 'tools', 'QT4AMockApp.apk'), True)
-    
-    if adb.is_selinux_opened():
-        # 此时如果还是开启状态说明关闭selinux没有生效,主要是三星手机上面
-        adb.run_shell_cmd('chcon u:object_r:app_data_file:s0 %slibdexloader.so' % dst_path, True)  # 不修改文件context无法加载so
-        adb.run_shell_cmd('chcon u:object_r:app_data_file:s0 %slibandroidhook.so' % dst_path, True)
+    adb.mkdir('%scache' % (dst_path), 777)
+
+    qt4a_helper_package = 'com.test.androidspy'
+    apk_path = os.path.join(root_path, 'QT4AHelper.apk')
+    if adb.get_package_path(qt4a_helper_package):
+        # 判断版本
+        installed_version = adb.get_package_version(qt4a_helper_package)
+        package = AndroidPackage(apk_path)
+        install_version = package.version
+        if version_cmp(install_version, installed_version) > 0:
+            adb.install_apk(apk_path, True)
+    else:
+        adb.install_apk(apk_path)
         
-    version_file_path = os.path.join(cur_path, 'tools', 'version.txt')
-    adb.push_file(version_file_path, dst_path + os.path.split(version_file_path)[-1])  # 最后拷贝版本文件
+    # adb.install_apk(os.path.join(root_path, 'QT4AMockApp.apk'), True)
+    version_file_path = os.path.join(root_path, 'version.txt')
+    dst_version_file_path = dst_path + os.path.split(version_file_path)[-1]
+    adb.push_file(version_file_path, dst_version_file_path + '.tmp')  # 拷贝版本文件
+    
+    if rooted and adb.is_selinux_opened():
+        # 此时如果还是开启状态说明关闭selinux没有生效,主要是三星手机上面
+        # 获取sdcars context
+        if adb.get_sdk_version() >= 23:
+            import re
+            sdcard_path = adb.get_sdcard_path()
+            result = adb.run_shell_cmd('ls -Z %s' % sdcard_path)
+            pattern = re.compile(r'\s+(u:object_r:.+:s0)\s+')  # u:object_r:media_rw_data_file:s0 u:object_r:rootfs:s0
+            ret = pattern.search(result)
+            if not ret: raise RuntimeError('get sdcard context failed: %s' % result)
+            context = ret.group(1)
+            logger.info('sdcard context is %s' % context)
+            adb.run_shell_cmd('chcon %s %s' % (context, dst_path), True)  # make app access
+            adb.run_shell_cmd('chcon u:object_r:app_data_file:s0 %sSpyHelper.jar' % dst_path, True)
+            adb.run_shell_cmd('chcon u:object_r:app_data_file:s0 %sSpyHelper.sh' % dst_path, True)
+            adb.run_shell_cmd('chcon u:object_r:system_file:s0 %slibdexloader.so' % dst_path, True)  # 不修改文件context无法加载so
+            adb.run_shell_cmd('chcon u:object_r:app_data_file:s0 %slibandroidhook.so' % dst_path, True)
+            adb.run_shell_cmd('chcon %s %sAndroidSpy.jar' % (context, dst_path), True)
+            adb.run_shell_cmd('chcon %s %scache' % (context, dst_path), True)
+        else:
+            adb.run_shell_cmd('chcon u:object_r:app_data_file:s0 %slibdexloader.so' % dst_path, True)  # 不修改文件context无法加载so
+            adb.run_shell_cmd('chcon u:object_r:app_data_file:s0 %slibandroidhook.so' % dst_path, True)
+            adb.run_shell_cmd('chcon u:object_r:app_data_file:s0 %scache' % dst_path, True)
+            
+    if rooted:
+        if adb.get_sdk_version() < 24:
+            # 7.0以上发现生成的dex与运行时生成的dex有差别，可能导致crash 
+            logger.info(adb.run_shell_cmd('sh %sSpyHelper.sh loadDex %sAndroidSpy.jar %scache' % (dst_path, dst_path, dst_path), rooted))
+            adb.chmod('%scache/AndroidSpy.dex' % dst_path, 666)
+    else:
+        if not 'usage:' in adb.run_shell_cmd('sh %sSpyHelper.sh' % dst_path):
+            adb.mkdir('%scache/dalvik-cache' % dst_path, 777)    
+                    
+    if rooted and adb.is_selinux_opened() and adb.get_sdk_version() >= 23:
+        # 提升权限
+        try:
+            adb.list_dir('/system/bin/app_process32')
+        except RuntimeError:
+            adb.copy_file('/system/bin/app_process', '%sapp_process' % dst_path)
+        else:
+            adb.copy_file('/system/bin/app_process32', '%sapp_process' % dst_path)
+        adb.chmod('%sapp_process' % dst_path, 755)
+        adb.run_shell_cmd('chcon u:object_r:system_file:s0 %sapp_process' % dst_path, True)
+        
+    adb.run_shell_cmd('mv %s %s' % (dst_version_file_path + '.tmp', dst_version_file_path), rooted)
 
     # 同步手机时间
-    from androiddevice import AndroidDevice
-    device = AndroidDevice(device_id)
-    device.modify_system_setting('system', 'time_12_24', 24)
-    device.modify_system_setting('system', 'screen_off_timeout', 600 * 1000)
-    device.set_system_timezone()
-    device.set_system_time()
-
+    device_driver = DeviceDriver(adb)
+    try:
+        input_method = 'com.test.androidspy/.service.QT4AKeyboardService'
+        device_driver.modify_system_setting('secure', 'enabled_input_methods', input_method)
+        device_driver.modify_system_setting('secure', 'default_input_method', input_method)
+        if enable_acc:
+            device_driver.modify_system_setting('secure', 'enabled_accessibility_services', 'com.test.androidspy/com.test.androidspy.service.QT4AAccessibilityService')
+            device_driver.modify_system_setting('secure', 'accessibility_enabled', 1) 
+    except:
+        logger.exception('set default input method failed')
+    try:
+        device_driver.modify_system_setting('system', 'time_12_24', 24)
+        device_driver.modify_system_setting('system', 'screen_off_timeout', 600 * 1000)
+    except:
+        logger.exception('set system time failed')
+        
 class AndroidDriver(object):
     '''
     '''
 
     qt4a_path = '/data/local/tmp/qt4a'
 
-    def __init__(self, device, process_name, addr='127.0.0.1'):
-        self._device = device
+    def __init__(self, device_driver, process_name, addr='127.0.0.1'):
+        self._device_driver = device_driver
+        self._adb = device_driver.adb
         self._process_name = process_name
-        port = self.get_process_name_hash(process_name, device.device_id)
-        logger.info('port=%d' % port)
-        self._port = port
-        self._client = AndroidSpyClient(self._port, addr=addr, timeout=360)
-        # self._client.pre_connect()
+        self._addr = addr
         self._process = {}  # 保存原始PID用于判断是否是新进程
         self._sync_lock = {}  # 同步锁
         self._max_block_time = 30  # 最长锁时间,防止卡死
@@ -196,17 +281,21 @@ class AndroidDriver(object):
         self._is_init = False
         
     @staticmethod
-    def create(process_name, device=None):
+    def create(process_name, device_or_driver):
         '''创建Driver实例
+
+        :param process_name: 目标进程名
+        :type  process_name: string
+        :param device:       设备实例
+        :type  device:       Device or DeviceDriver
         '''
-        from androiddevice import AndroidDevice
-        if device == None:
-            device = AndroidDevice('')
-        if not isinstance(device, AndroidDevice):
-            device = device._device
+        if hasattr(device_or_driver, '_device_driver'):
+            device_driver = device_or_driver._device_driver
+        else:
+            device_driver = device_or_driver
         host_addr = '127.0.0.1'
-        if not device._is_local_device: host_addr = device.adb.host_name
-        return AndroidDriver(device, process_name, addr=host_addr)
+        if not device_driver._is_local_device: host_addr = device_driver.adb.host_name
+        return AndroidDriver(device_driver, process_name, addr=host_addr)
     
     @staticmethod
     def get_process_name_hash(process_name, device_id):
@@ -217,12 +306,22 @@ class AndroidDriver(object):
         result = 0
         start_port = 15000
         port_range = 1000
-        for c in process_name + device_id:
+        text = device_id + process_name
+        for i in range(len(text)):
+            c = text[i]
             asc = ord(c)
-            result += 13 * asc
-            if result > port_range:
-                result %= port_range
+            result = 31 * result + asc
+
+        if result > port_range:
+            result %= port_range
         return result + start_port
+    
+    def _create_client(self):
+        '''创建新的Client实例
+        '''
+        sock = self._adb.create_tunnel(self._process_name, 'localabstract')
+        if sock == None: return None
+        return DirectAndroidSpyClient(sock, timeout=360)
     
     def _safe_init_driver(self):
         '''多线程安全的初始化测试桩
@@ -236,20 +335,21 @@ class AndroidDriver(object):
     def _init_driver(self):
         '''初始化测试桩
         '''
-        if AndroidSpyClient.server_opened(self._port): 
+        self._client = self._create_client()
+        if self._client != None:
             # 字段赋值
-            logger.info('port %d opened' % self._port)
             self._process['name'] = self._process_name
-            self._process['id'] = self._device.adb.get_pid(self._process_name)
-            if self.hello() != None:
+            self._process['id'] = 0  # process id may change
+            if self.hello() != None: 
+                self._process['id'] = self._adb.get_pid(self._process_name)
                 return
-
+                
         timeout = 20
         time0 = time.time()
         proc_exist = False
         while time.time() - time0 < timeout:
             if not proc_exist:
-                pid = self._device.adb.get_pid(self._process_name)
+                pid = self._adb.get_pid(self._process_name)
                 if pid > 0:
                     proc_exist = True
                     self._process['name'] = self._process_name
@@ -261,46 +361,76 @@ class AndroidDriver(object):
         if not proc_exist:
             raise RuntimeError('进程：%s 在%d秒内没有出现' % (self._process_name, timeout))
         
+        inject_file = 'inject'
+        if self._adb.is_app_process64(pid if self._adb.is_rooted() else self._process_name):
+            # 64 bit process
+            inject_file += '64'
         timeout = 30
         
         try:
-            if self._device.is_art():
+            if self._adb.is_art():
                 # Android 5.0上发现注入容易导致进程退出
                 self._wait_for_cpu_low(20, 10)
             
             time0 = time.time()
+            cmdline = '%s/%s %s' % (self._get_driver_root_path(), inject_file, self._process_name)
             while time.time() - time0 < timeout:
-                ret = self._device.adb.run_shell_cmd('.%s/inject %s' % (AndroidDriver.qt4a_path, self._process_name), True, timeout=120, retry_count=1)
+                if self._adb.is_rooted():
+                    ret = self._adb.run_shell_cmd(cmdline, True, timeout=120, retry_count=1)
+                else:
+                    ret = self._adb.run_as(self._process_name, cmdline, timeout=120, retry_count=1)
                 logger.debug('inject result: %s' % ret)
                 if 'Inject Success' in ret: break
                 elif 'Operation not permitted' in ret:
                     # 可能是进程处于Trace状态
-                    pid = self._device.adb.get_pid(self._process_name)
-                    status = self._device.adb.get_process_status(pid)
+                    pid = self._adb.get_pid(self._process_name)
+                    status = self._adb.get_process_status(pid)
                     tracer_pid = int(status['TracerPid'])
                     if tracer_pid > 0:
                         if int(status['PPid']) == tracer_pid:
                             # 使用TRACEME方式防注入
                             raise Exception('应用使用了防注入逻辑,注入失败')
                         logger.warn('TracerPid is %d' % tracer_pid)
-                        self._device.adb.kill_process(tracer_pid)
+                        self._adb.kill_process(tracer_pid)
                 time.sleep(1)
                 
         except RuntimeError, e:
-            logger.error('%s\n%s' % (e, self._device.adb.run_shell_cmd('ps')))
-            logger.info(self._device.adb.dump_stack(self._process_name))
+            logger.exception('%s\n%s' % (e, self._adb.run_shell_cmd('ps')))
+            logger.info(self._adb.dump_stack(self._process_name))
             raise e
         timeout = 10
         time0 = time.time()
         while time.time() - time0 < timeout:
-            time.sleep(0.5)
-            new_port = self._device.adb.forward(self._port, self._process_name, 'localabstract')  # TODO: 判断PC端口是否占用
-            if new_port != self._port:
-                self._port = new_port
-                logger.info('new port=%d' % new_port)
-            if self.hello() != None:
+            if self._client == None: self._client = self._create_client()
+            if self._client != None and self.hello() != None:
                 return
+            time.sleep(0.1)
         raise RuntimeError('连接测试桩超时')
+    
+    def _get_driver_root_path(self):
+        '''获取驱动文件根目录
+        '''
+        if self._adb.is_rooted(): return self.__class__.qt4a_path
+        package_name = self._process_name
+        if ':' in package_name: package_name = package_name.split(':')[0]
+        if not self._device_driver.is_debug_package(package_name):
+            raise NotImplementedError('Non root device doesn\'t support release package')
+        root_path = '/data/data/%s/qt4a' % package_name  # 使用应用目录作为根目录
+        result = self._adb.run_as(package_name, 'ls -l %s/inject' % root_path)
+        if not 'No such file or directory' in result: return root_path
+        
+        # 拷贝驱动文件
+        self._adb.run_as(package_name, 'mkdir %s' % root_path)
+        self._adb.run_as(package_name, 'mkdir %s/cache' % root_path)
+        file_list = ['AndroidSpy.jar']  # , 'cache/AndroidSpy.dex'
+        if self._adb.is_app_process64(package_name):
+            file_list.extend(['droid_inject64', 'inject64', 'libdexloader64.so'])
+        else:
+            file_list.extend(['droid_inject', 'inject', 'libdexloader.so', 'libandroidhook.so'])
+        for filename in file_list:
+            self._adb.run_as(package_name, 'cp %s/%s %s/%s' % (self.__class__.qt4a_path, filename, root_path, filename))
+        # self._device.adb.run_as(package_name, 'sh %s/SpyHelper.sh loadDex %s/AndroidSpy.jar %s/cache' % (self.__class__.qt4a_path, self.__class__.qt4a_path, root_path))
+        return root_path
     
     def _wait_for_cpu_low(self, max_p_cpu, max_t_cpu, timeout=20, interval=0.5):
         '''等待待注入进程CPU使用率降低到max_p_cpu，线程CPU使用率降低到max_t_cpu
@@ -312,17 +442,12 @@ class AndroidDriver(object):
         '''
         time0 = time.time()
         while time.time() - time0 < timeout:
-            ret = self._device.adb.get_process_cpu(self._process_name)
+            ret = self._adb.get_process_cpu(self._process_name)
             if ret != None:
                 p_cpu, t_cpu = ret
                 logger.debug('current cpu: %d, %d' % (p_cpu, t_cpu))
                 if p_cpu < max_p_cpu and t_cpu < max_t_cpu: return
             time.sleep(interval)
-            
-    def get_current_activity(self):
-        '''获取当前Activity
-        '''
-        return self._device.get_current_activity()
 
     def close(self):
         '''关闭连接
@@ -374,7 +499,7 @@ class AndroidDriver(object):
         
         result = self._client.send_command(cmd_type, **kwds)
         if result == None:
-            pid = self._device.adb.get_pid(self._process['name'])
+            pid = self._adb.get_pid(self._process['name'])
             if pid > 0 and pid != self._process['id']:
                 # 新进程，需要重新注入
                 logger.info('process %s id changed: %d %d' % (self._process['name'], self._process['id'], pid))
@@ -382,13 +507,13 @@ class AndroidDriver(object):
                 self._process['id'] = pid
                 return self.send_command(cmd_type, **kwds)
             elif pid == 0:
-                raise RuntimeError('被测进程已退出，确认是否发生Crash')
+                raise ProcessExitError('被测进程已退出，确认是否发生Crash')
             elif cmd_type != EnumCommand.CmdHello:
                 # hello包不重试
                 logger.debug('socket error, try to reconnect')
                 for _ in range(3):
                     # 为防止由于设备短暂失联导致的连接断开，这里调一次adb forward
-                    self._device.adb.forward(self._port, self._process['name'], 'localabstract')
+                    self._client = self._create_client()
                     result = self._client.send_command(cmd_type, **kwds)
                     if result != None: return result
                 raise SocketError('Connect Failed')
@@ -418,18 +543,18 @@ class AndroidDriver(object):
                 time.sleep(2)
                 continue
             # self._enable_debug()
+            if not 'Result' in result:
+                raise RuntimeError('Server error')
+            items = result['Result'].split(':')
+            if len(items) > 0 and items[-1].isdigit():
+                if self._process['id'] and int(items[-1]) != self._process['id']:
+                    raise RuntimeError('Server pid not match %s' % result['Result'])
             return result['Result']
 
     def _enable_debug(self):
         '''启用Debug模式
         '''
         self.send_command(EnumCommand.CmdEnableDebug)
-
-    def get_current_view(self):
-        '''
-        '''
-        result = self.send_command(EnumCommand.CmdGetCurrentView)
-        return result['Result']
 
     def get_control(self, activity, parent, locator, get_position=False):
         '''获取控件hashcode
@@ -451,12 +576,13 @@ class AndroidDriver(object):
             if isinstance(err_msg, unicode):
                 err_msg = err_msg.encode('utf8')
             if err_msg.find('java.lang.RuntimeException: 找到重复控件') >= 0:
-                import sys
                 try:
                     print >> sys.stderr, e.args[0]
                 except:
                     pass
-                err_msg = '定位到重复控件：%s' % locator
+                qpath = '/'.join(' && '.join([(key + it[key][0] + '"' + str(it[key][1]) + '"') for key in it.keys()]) for it in locator)
+                if isinstance(qpath, unicode): qpath = qpath.encode('utf8')
+                err_msg = '定位到重复控件：/%s' % qpath
                 try:
                     from tuia.exceptions import ControlAmbiguousError
                     raise ControlAmbiguousError(err_msg)
@@ -624,7 +750,6 @@ class AndroidDriver(object):
         '''
         from util import KeyCode
         key_list = KeyCode.get_key_list(text)
-        # print key_list
         for key in key_list:
             self.send_key(key)
 
@@ -642,9 +767,6 @@ class AndroidDriver(object):
         except AndroidSpyError, e:
             if str(e).find('java.lang.SecurityException') >= 0:
                 # 有时操作过快会出现该问题
-#                 pic_name = '%s.png' % int(time.time())
-#                 logger.warn('%s %s' % (e, pic_name))
-#                 self._device.take_screen_shot(pic_name)
                 return False
             elif 'ErrControlNotShown' in str(e):
                 return False
@@ -669,7 +791,13 @@ class AndroidDriver(object):
         :param y2: 终点纵坐标
         :type y2:  int
         :param count: 步数
-        :type step: int
+        :type count: int
+        :param wait_time: 滑动过程中每步之间的间隔时间，ms
+        :type wait_time: int
+        :param send_down_event: 是否发送按下消息
+        :type send_down_event: boolean
+        :param send_up_event: 是否发送弹起消息
+        :type send_up_event: boolean 
         '''
         if y1 != y2 and abs(y1 - y2) < 60:  # 此时滑动距离会很短
             m = (y1 + y2) / 2  # 保证最短滑动距离为40，在索尼ce0682上发现小于40时会变成点击 三星9300上发现有时60像素以下滑动不起来
@@ -677,7 +805,7 @@ class AndroidDriver(object):
             else: d = -30
             y1 = m + d  # TODO:坐标合法性判断
             y2 = m - d
-        for i in range(3):
+        for _ in range(3):
             try:
                 return self.send_command(EnumCommand.CmdDrag, X1=x1, Y1=y1, X2=x2, Y2=y2,
                                          StepCount=count,
@@ -686,24 +814,12 @@ class AndroidDriver(object):
                                          SendUpEvent=send_up_event)
             except AndroidSpyError, e:
                 if str(e).find('java.lang.SecurityException') >= 0:
+                    logger.info('java.lang.SecurityException,current activity:%s' % self.get_current_activity())  # 检测是否有弹窗
                     # 有时操作过快会出现该问题
                     time.sleep(0.1)
                 else:
                     raise e
         logger.error('drag (%s, %s, %s, %s) failed' % (x1, y1, x2, y2))
-
-    def shake(self, duration=4, interval=0.05):
-        '''摇一摇
-        '''
-        import random
-        time0 = time.time()
-        max_val = 40
-        while time.time() - time0 < duration:
-            x = random.randint(-max_val, max_val)
-            y = random.randint(-max_val, max_val)
-            z = random.randint(-max_val, max_val)
-            self.send_command(EnumCommand.CmdSensorEvent, Sensor="Accelerometer", Data=[x, y, z], wait=True)
-            time.sleep(interval)
 
     def enable_soft_input(self, control, enable=False):
         '''启用/禁止软键盘
@@ -713,34 +829,42 @@ class AndroidDriver(object):
     def _close_activity(self, activity):
         '''关闭Activity
         '''
-        try:
-            result = self.send_command(EnumCommand.CmdCloseActivity, Activity=activity)
-            return result['Result']
-        except AndroidSpyError, e:
-            logger.exception('close_activity error')
-            if '不存在' in str(e): return True
-            raise e
+        result = self.send_command(EnumCommand.CmdCloseActivity, Activity=activity)
+        return result['Result']
         
     def close_activity(self, activity):
         '''关闭Activity
         '''
-        for _ in range(3):
-            if self._close_activity(activity): return True
-            time.sleep(1)
-        return False
+        try:
+            return self._close_activity(activity)
+        except ProcessExitError:
+            logger.warn('close_activity error: process %s not exist' % self._process_name)
+            return -3  # 进程退出
 
     def eval_script(self, control, frame_xpaths, script):
         '''执行JavaScript
         '''
         result = self.send_command(EnumCommand.CmdEvalScript, Control=control, Script=script, Frame=frame_xpaths)
         return result['Result']
-
+    
+    def get_static_field_value(self, class_name, field_name):
+        '''
+        '''
+        result = self.send_command(EnumCommand.CmdGetStaticFieldValue, ClassName=class_name, FieldName=field_name)
+        return result['Result']
+    
     def get_object_field_value(self, control, field_name):
         '''
         '''
         result = self.send_command(EnumCommand.CmdGetObjectFieldValue, Control=control, FieldName=field_name)
         return result['Result']
     
+    def call_static_method(self, class_name, method_name, ret_type='', *args):
+        '''调用静态方法
+        '''
+        result = self.send_command(EnumCommand.CmdCallStaticMethod, ClassName=class_name, Method=method_name, RetType=ret_type, Args=args)
+        return result['Result']
+        
     def call_object_method(self, control, inner_obj, method_name, ret_type='', *args):
         '''调用对象方法
         '''
@@ -762,6 +886,7 @@ class AndroidDriver(object):
     def _format_control_tree(self, result, indent=0):
         '''格式化控件树
         '''
+        if not result: return ''
         id = result.pop('Id')
         padding = '+--' * indent + '+'
         ret = '%s%s (' % (padding, id)
@@ -785,7 +910,14 @@ class AndroidDriver(object):
         '''获取控件树
         '''
         result = self._get_control_tree(activity, index)
-        return self._format_control_tree(result)
+        if len(activity) > 0:
+            return self._format_control_tree(result)
+        else:
+            output = ''
+            for activity in result.keys():
+                output += '%s:\n' % activity
+                output += self._format_control_tree(result[activity])
+            return output
     
     def set_thread_priority(self, priority):
         '''设置测试线程优先级
@@ -794,7 +926,17 @@ class AndroidDriver(object):
         :type priority:  EnumThreadPriority
         '''
         self.send_command(EnumCommand.CmdSetThreadPriority, Priority=priority)
+    
+    def set_webview_debugging_enabled(self, control, enable=True):
+        '''设置WebView调试状态
+        
+        :param control: WebView控件hashcode
+        :type  control: int/long
+        :param enable: 是否开启WebView调试
+        :type  enable: bool
+        '''
+        self.send_command(EnumCommand.CmdSetWebViewDebuggingEnabled, Control=control, Enable=True)
         
 if __name__ == '__main__':
-    copy_android_driver('')
-    exit()
+    pass
+

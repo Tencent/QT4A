@@ -1,0 +1,4 @@
+build/
+dist/
+qt4a.egg-info/
+*.pyc

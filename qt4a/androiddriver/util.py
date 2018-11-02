@@ -1,5 +1,5 @@
 # -*- coding: utf-8 -*-
-# 
+#
 # Tencent is pleased to support the open source community by making QTA available.
 # Copyright (C) 2016THL A29 Limited, a Tencent company. All rights reserved.
 # Licensed under the BSD 3-Clause License (the "License"); you may not use this 
@@ -11,16 +11,18 @@
 # under the License is distributed on an "AS IS" basis, WITHOUT WARRANTIES OR CONDITIONS
 # OF ANY KIND, either express or implied. See the License for the specific language
 # governing permissions and limitations under the License.
-# 
+#
 
 '''
 通用功能模块
 '''
 
-import os, sys
-import time
 import logging
+import os
+import sys
 import threading
+import time
+
 
 class Deprecated(object):
     '''废弃函数包装
@@ -52,6 +54,11 @@ class AndroidSpyError(RuntimeError):
     ''' 
     pass
 
+class ProcessExitError(RuntimeError):
+    '''进程退出错误
+    '''
+    pass
+
 class ControlExpiredError(AndroidSpyError):
     '''控件失效错误
     '''
@@ -67,14 +74,19 @@ class PackageError(RuntimeError):
     '''
     pass
 
+class PermissionError(RuntimeError):
+    '''权限错误
+    '''
+    pass
+
 def mkdir(dir_path):
     '''创建目录
     '''
     if os.path.exists(dir_path): return
     try:
         os.mkdir(dir_path)
-    except WindowsError, e:
-        if e.args[0] == 183:
+    except OSError, e:
+        if e.args[0] == 183 or e.args[0] == 17:
             # 文件已经存在
             return
         raise e
@@ -82,7 +94,12 @@ def mkdir(dir_path):
 def gen_log_path():
     '''生成log存放路径
     '''
-    dir_root = os.environ['APPDATA']  # 为防止log文件被svn强制删除，故放在此处
+    dir_root = ''
+    if sys.platform == 'win32':
+        dir_root = os.environ['APPDATA']
+    else:
+        dir_root = os.environ['HOME']
+        
     dir_root = os.path.join(dir_root, 'qt4a')
     mkdir(dir_root)
     from datetime import datetime, date
@@ -94,23 +111,17 @@ def gen_log_path():
 
 logger = logging.getLogger('qt4a')
 logger.setLevel(logging.DEBUG)
-# logger.setLevel(logging.INFO)
-# logger.setLevel(logging.WARNING)
 logger.addHandler(logging.StreamHandler(sys.stdout))
 fmt = logging.Formatter('%(asctime)s %(thread)d %(message)s')  # %(filename)s %(funcName)s
 logger.handlers[0].setFormatter(fmt)
 logger.handlers[0].setLevel(logging.WARNING)  # 屏幕日志级别为WARNING
 # logger.addHandler(logging.StreamHandler(sys.stderr))
 
-logger_path = None
-try:
-    logger_path = gen_log_path()
-    file_handler = logging.FileHandler(logger_path)
-    fmt = logging.Formatter('%(asctime)s %(levelname)s %(thread)d %(message)s')  # %(filename)s %(funcName)s
-    file_handler.setFormatter(fmt)
-    logger.addHandler(file_handler)
-except KeyError:
-    pass
+logger_path = gen_log_path()
+file_handler = logging.FileHandler(logger_path)
+fmt = logging.Formatter('%(asctime)s %(levelname)s %(thread)d %(message)s')  # %(filename)s %(funcName)s
+file_handler.setFormatter(fmt)
+logger.addHandler(file_handler)
 
 
 def clear_logger_file():
@@ -130,7 +141,6 @@ def get_default_encoding():
     return codecs.lookup(locale.getpreferredencoding()).name
 
 def set_default_encoding(code='utf8'):
-    import sys
     if sys.getdefaultencoding() == code: return
     reload(sys)
     sys.setdefaultencoding(code)
@@ -149,6 +159,18 @@ def get_file_md5(file_path):
         md5.update(content)   
         return md5.hexdigest() 
 
+class static_property(property):
+    '''静态属性
+    '''
+    def __init__(self, *args, **kwargs):
+        super(static_property, self).__init__(*args, **kwargs)
+        self._value_dict = {}
+        
+    def __get__(self, obj, cls):
+        if not id(obj) in self._value_dict:
+            self._value_dict[id(obj)] = super(static_property, self).__get__(obj, cls)
+        return self._value_dict[id(obj)]
+    
 class AndroidPackage(object):
     '''APK文件处理类
     '''
@@ -187,7 +209,14 @@ class AndroidPackage(object):
         '''
         manifest = self._get_manifest_xml()
         return manifest.getElementsByTagName('application')[0].getAttribute('android:label')
-                
+    
+    @property
+    def version(self):
+        '''应用版本
+        '''
+        manifest = self._get_manifest_xml()
+        return manifest.getElementsByTagName('manifest')[0].getAttribute('android:versionName')
+    
     @property
     def start_activity(self):
         '''启动Activity
@@ -197,6 +226,10 @@ class AndroidPackage(object):
             for filter in activity.getElementsByTagName('action'):
                 if filter.getAttribute('android:name') == 'android.intent.action.MAIN':
                     return activity.getAttribute('android:name')
+        for activity in manifest.getElementsByTagName('activity-alias'):
+            for filter in activity.getElementsByTagName('action'):
+                if filter.getAttribute('android:name') == 'android.intent.action.MAIN':
+                    return activity.getAttribute('android:targetActivity')
         raise PackageError('未找到启动Activity')
     
     @property
@@ -219,13 +252,21 @@ class KeyCode(object):
     KEYCODE_CALL = 5
     KEYCODE_ENDCALL = 6
     KEYCODE_0 = 7
+    
+    KEYCODE_DPAD_UP = 19
+    KEYCODE_DPAD_DOWN = 20
+    KEYCODE_DPAD_LEFT = 21
+    KEYCODE_DPAD_RIGHT = 22
+
     KEYCODE_VOLUME_UP = 24
     KEYCODE_VOLUME_DOWN = 25
     KEYCODE_POWER = 26
     KEYCODE_CAMERA = 27
     KEYCODE_CLEAR = 28
     KEYCODE_A = 29
-
+    
+    KEYCODE_COMMA = 55
+    KEYCODE_PERIOD = 56
     KEYCODE_ALT_LEFT = 57
     KEYCODE_ALT_RIGHT = 58
     KEYCODE_SHIFT_LEFT = 59  # 用于大写字母
@@ -254,11 +295,23 @@ class KeyCode(object):
 
     KEYCODE_PAGE_UP = 92
     KEYCODE_PAGE_DOWN = 93
-
+    
+    KEYCODE_ESCAPE = 111
     KEYCODE_FORWARD_DEL = 112
-
+    KEYCODE_CTRL_LEFT = 113
+    KEYCODE_CTRL_RIGHT = 114
+    
+    KEYCODE_MOVE_HOME = 122
+    KEYCODE_MOVE_END = 123
+    
+    KEYCODE_ZOOM_IN = 168
+    KEYCODE_ZOOM_OUT = 169
+    
     KEYCODE_LANGUAGE_SWITCH = 204
-
+    
+    KEYCODE_SLEEP = 223
+    KEYCODE_WAKEUP = 224
+    
     keys_map = {'{LEFT}': KEYCODE_SOFT_LEFT,
                 '{RIGHT}': KEYCODE_SOFT_RIGHT,
                 '{HOME}': KEYCODE_HOME,
@@ -267,7 +320,15 @@ class KeyCode(object):
                 '{VOLUME_UP}': KEYCODE_VOLUME_UP,
                 '{VOLUME_DOWN}': KEYCODE_VOLUME_DOWN,
                 '{ENTER}': KEYCODE_ENTER,
-                '{DEL}': KEYCODE_DEL,
+                '{BACKSPACE}': KEYCODE_DEL,
+                '{LEFT}': KEYCODE_DPAD_LEFT,
+                '{RIGHT}': KEYCODE_DPAD_RIGHT,
+                '{UP}': KEYCODE_DPAD_UP,
+                '{DOWN}': KEYCODE_DPAD_DOWN,
+                '{DEL}': KEYCODE_FORWARD_DEL,
+                '{DELETE}': KEYCODE_FORWARD_DEL,
+                '{POWER}': KEYCODE_POWER,
+                '{ESC}': KEYCODE_ESCAPE,
                 '`': KEYCODE_GRAVE,
                 '-': KEYCODE_MINUS,
                 '=': KEYCODE_EQUALS,
@@ -280,9 +341,30 @@ class KeyCode(object):
                 '@': KEYCODE_AT,
                 '+': KEYCODE_PLUS,
                 ' ': KEYCODE_SPACE,
-                '\t': KEYCODE_TAB
+                '\t': KEYCODE_TAB,
+                ',': KEYCODE_COMMA,
+                '.': KEYCODE_PERIOD
                 }
-
+    
+    shift_chars = {'~': '`',
+                   '!': '1',
+                   '#': '3',
+                   '$': '4',
+                   '%': '5',
+                   '^': '6',
+                   '&': '7',
+                   '*': '8',
+                   '(': '9',
+                   ')': '0',
+                   '_': '-',
+                   '=': '+',
+                   ':': ';',
+                   '"': "'",
+                   '<': ',',
+                   '>': '.',
+                   '?': '/'
+                   }
+    
     @staticmethod
     def get_key_list(text):
         '''将字符串转换为按键列表
@@ -310,10 +392,15 @@ class KeyCode(object):
                     raise RuntimeError('按键错误：%s' % key)
                 result.append(KeyCode.keys_map[key])
                 i = end
-            else:
-                if not KeyCode.keys_map.has_key(text[i]):
-                    raise NotImplementedError('不支持的按键：%s' % text[i])
+            elif text[i] in KeyCode.keys_map:
                 result.append(KeyCode.keys_map[text[i]])
+            elif text[i] in KeyCode.shift_chars:
+                keys = KeyCode.get_key_list(KeyCode.shift_chars[text[i]])
+                keys.insert(0, KeyCode.KEYCODE_SHIFT_LEFT)
+                result.append(keys)
+            else:
+                raise NotImplementedError('不支持的按键：%s' % text[i])
+
             i += 1
         return result
 
@@ -359,38 +446,36 @@ class Mutex(object):
         
     def __exit__(self, type, value, traceback):
         self._lock.release()
-            
-class CrossThreadException(object):
-    '''跨线程传递异常信息
+
+class OutStream(object):
+    '''重载输出流，以便在cmd中显示中文
     '''
-    _instance = None
-
-    def __init__(self):
-        self._exception = None
-
-    @staticmethod
-    def instance():
-        if not CrossThreadException._instance:
-            CrossThreadException._instance = CrossThreadException()
-        return CrossThreadException._instance
-
+    def __init__(self, stdout):
+        self._stdout = stdout
+    
     @property
-    def exception(self):
-        return self._exception
-
-    @exception.setter
-    def exception(self, exception_info):
-        self._exception = exception_info
-
-    def check_exception(self, print_stack=True):
-        if self._exception:
-            if print_stack:
-                import traceback
-                for line in traceback.format_exception(*self._exception):
-                    print >> sys.stderr, line,
-            error = self._exception[1]
-            self._exception = None
-            raise error
+    def encoding(self):
+        return 'utf8'
+    
+    def write(self, s):
+        if not isinstance(s, unicode):
+            try:
+                s = s.decode('utf8')
+            except UnicodeDecodeError:
+                try:
+                    s = s.decode('gbk')  # sys.getdefaultencoding()
+                except UnicodeDecodeError:
+                    s = 'Decode Error: %r' % s
+                    # s = s.encode('raw_unicode_escape') #不能使用GBK编码
+        try:
+            ret = self._stdout.write(s)
+            self.flush()
+            return ret
+        except UnicodeEncodeError:
+            pass
+ 
+    def flush(self):
+        return self._stdout.flush()
 
 class ThreadEx(threading.Thread):
     '''可以捕获异常的线程类
@@ -400,8 +485,12 @@ class ThreadEx(threading.Thread):
         '''
         import platform
         if platform.system() == "Windows":
-            import pythoncom
-            pythoncom.CoInitialize()
+            try:
+                import pythoncom
+            except ImportError:
+                pass
+            else:
+                pythoncom.CoInitialize()
         try:
             return threading.Thread.run(self)
         except (KeyboardInterrupt, SystemExit):
@@ -409,45 +498,16 @@ class ThreadEx(threading.Thread):
         except:
             # sys.excepthook(*sys.exc_info())
             logger.exception('thread %s exit' % self.getName())
-            
-class SharedMemory(object):
-    '''共享内存
+
+class Singleton(object):
+    '''单例基类
     '''
-    def __init__(self, name, mem_size=256, reader=True):
-        import ctypes
-        self._name = name
-        self._reader = reader
-        PAGE_READWRITE = 0x04
-        FILE_MAP_ALL_ACCESS = 0xF001F
-        if not reader:
-            hMapObject = ctypes.windll.kernel32.CreateFileMappingA(-1, None, PAGE_READWRITE, 0, mem_size, name)
-            if hMapObject == 0:
-                raise WindowsError('CreateFileMapping Failed: %d' % ctypes.windll.kernel32.GetLastError())
-        else:
-            hMapObject = ctypes.windll.kernel32.OpenFileMappingA(FILE_MAP_ALL_ACCESS, False, name)
-            if hMapObject == 0:
-                raise WindowsError('OpenFileMapping Failed: %d' % ctypes.windll.kernel32.GetLastError())
-        self._hMapObject = hMapObject
-        self._mmap = ctypes.windll.kernel32.MapViewOfFile(hMapObject, FILE_MAP_ALL_ACCESS, 0, 0, mem_size)
-        if self._mmap == 0:
-            raise WindowsError('MapViewOfFile Failed: %d' % ctypes.windll.kernel32.GetLastError())
+    instance = None
 
-    def write(self, msg=''):
-        import ctypes
-        memcpy = ctypes.cdll.msvcrt.memcpy
-        memcpy(self._mmap, msg, len(msg))
-
-    def read(self):
-        import ctypes
-        pBuf_str = ctypes.cast(self._mmap, ctypes.c_char_p)
-        return pBuf_str.value
-
-    def close(self):
-        import ctypes
-        ctypes.windll.kernel32.UnmapViewOfFile(self._mmap)
-        ctypes.windll.kernel32.CloseHandle(self._hMapObject)
-        self._mmap = 0
-        self._hMapObject = 0
+    def __new__(cls, *args, **kwargs):
+        if not cls.instance:
+            cls.instance = super(Singleton, cls).__new__(cls, *args, **kwargs)
+        return cls.instance
 
 def get_root_path():
     '''获取根目录，支持py2exe打包后
@@ -492,20 +552,91 @@ def get_string_hashcode(s):
 def get_intersection(rect1, rect2):
     '''计算两个区域的交集
     '''
-    rect1 = list(rect1)
-    rect2 = list(rect2)
-    if rect1[0] < rect2[0]:
-        rect1[0] = rect2[0]
-        rect1[2] = rect2[0] + rect2[2] - rect1[0]
-    if rect1[0] + rect1[2] > rect2[0] + rect2[2]:
-        rect1[2] = rect2[0] + rect2[2] - rect1[0]
-    if rect1[1] < rect2[1]:
-        rect1[1] = rect2[1]
-        rect1[3] = rect2[1] + rect2[3] - rect1[1]
-    if rect1[1] + rect1[3] > rect2[1] + rect2[3]:
-        rect1[3] = rect2[1] + rect2[3] - rect1[1]
-    return rect1
+    left = max(rect1[0], rect2[0])
+    right = min(rect1[0] + rect1[2], rect2[0] + rect2[2])
+    top = max(rect1[1], rect2[1])
+    bottom = min(rect1[1] + rect1[3], rect2[1] + rect2[3])
+    return (left, top, right - left, bottom - top)
+
+def get_process_name_hash(process_name, device_id):
+    '''根据进程名和设备id计算端口值
+            结果范围：[5100, 5200)
+    TODO: hash冲突的解决
+    '''
+    result = 0
+    start_port = 15000
+    port_range = 1000
+    text = device_id + process_name
+    for i in range(len(text)):
+        c = text[i]
+        asc = ord(c)
+        result = 31 * result + asc
+
+    if result > port_range:
+        result %= port_range
+    return result + start_port
+
+def version_cmp(ver1, ver2):
+    '''版本比较
+    '''
+    if ver1 == ver2: return 0
+    ver1 = ver1.split('.')
+    ver2 = ver2.split('.')
+    i = 0
+    while True:
+        if i >= len(ver1) and i >= len(ver2): return 0
+        if i >= len(ver1) and i < len(ver2):  return -1
+        if i >= len(ver2) and i < len(ver1):  return 1
+        if ver1[i].isdigit() and ver2[i].isdigit():
+            c1 = int(ver1[i])
+            c2 = int(ver2[i])
+            if c1 > c2: return 1
+            elif c1 < c2: return -1
+        elif ver1[i].isdigit():
+            return 1
+        elif ver2[i].isdigit():
+            return -1
+        else:
+            return 0
+        i += 1
+
+def list_zipfile_dir(zipfile_path, dir_path):
+    '''获取zip文件中指定目录的子目录和文件列表
+    '''
+    import zipfile
+    with zipfile.ZipFile(zipfile_path, "r") as z:
+        result = []
+        for it in z.namelist():
+            if it.startswith('%s/' % dir_path):
+                result.append(it[len(dir_path) + 1:])
+        return result
+    
+def extract_from_zipfile(zipfile_path, relative_path, save_path):
+    '''从zip文件中提取文件
+    '''
+    logger.info('extract_from_zipfile %s %s' % (relative_path, save_path))
+    import zipfile
+    with zipfile.ZipFile(zipfile_path, "r") as z:
+        try:
+            z.getinfo(relative_path)
+        except KeyError:
+            for it in list_zipfile_dir(zipfile_path, relative_path):
+                extract_from_zipfile(zipfile_path, relative_path + '/' + it, os.path.join(save_path, it))
+        else:
+            content = z.read(relative_path)
+            save_dir = os.path.dirname(save_path)
+            if not os.path.exists(save_dir):
+                os.makedirs(save_dir)
+            with open(save_path, 'wb') as f:
+                f.write(content)
+
+def time_clock():
+    '''
+    '''
+    if sys.platform == 'win32':
+        return time.clock()
+    else:
+        return time.time()
 
 if __name__ == '__main__':
     pass
-    

@@ -1,5 +1,5 @@
 # -*- coding: UTF-8 -*-
-# 
+#
 # Tencent is pleased to support the open source community by making QTA available.
 # Copyright (C) 2016THL A29 Limited, a Tencent company. All rights reserved.
 # Licensed under the BSD 3-Clause License (the "License"); you may not use this 
@@ -11,13 +11,10 @@
 # under the License is distributed on an "AS IS" basis, WITHOUT WARRANTIES OR CONDITIONS
 # OF ANY KIND, either express or implied. See the License for the specific language
 # governing permissions and limitations under the License.
-# 
+#
 
 '''ADB客户端，用于与ADB守护进程通信
 '''
-
-# 2013/9/16 apple 创建
-# 2014/11/6 apple 接口修改，与adb命令保持一致
 
 import os
 import time
@@ -40,8 +37,14 @@ class Pipe(object):
         self._max_buffer_size = 4096 * 16
         self._lock = threading.Lock()
         self._pos = 0  # 当前读指针位置
+        self._write_buffer = ''  # 保证每次都是整行写
         
     def write(self, s):
+        self._write_buffer += s
+        pos = self._write_buffer.rfind('\n')
+        if pos <= 0: return
+        s = self._write_buffer[:pos]
+        self._write_buffer = self._write_buffer[pos:]
         with self._lock:
             self._buffer.seek(0, 2)  # 将指针置于尾部
             self._buffer.write(s)
@@ -81,8 +84,12 @@ class Pipe(object):
         '''
         with self._lock:
             self._buffer.seek(self._pos)
-            return self._buffer.read()
-    
+            result = self._buffer.read()
+            if self._write_buffer: 
+                result += self._write_buffer
+                self._write_buffer = ''
+            return result
+        
 class ADBPopen(object):
     '''与Popen兼容
     '''
@@ -107,6 +114,7 @@ class ADBPopen(object):
         self._running = True
         self._timeout = timeout
         if self._timeout == None: self._timeout = 0xFFFFFFFF
+        self._event = threading.Event()  # 接收完数据的事件通知
         self._thread = threading.Thread(target=self._work_thread, args=(), name=self.__class__.__name__)
         self._thread.setDaemon(True)
         self._thread.start()
@@ -137,6 +145,7 @@ class ADBPopen(object):
                     if len(buff) == 0: 
                         self._sock.close()
                         self._running = False
+                        self._event.set()
                         return
                     self._stdout.write(buff)
                 except socket.error, e:
@@ -146,8 +155,10 @@ class ADBPopen(object):
                     self._stdout.write(' ')  # 通知接收方退出
                     self._sock.close()
                     self._running = False
+                    self._event.set()
                     return
         self._sock.close()
+        self._sock = None
         
     def poll(self):
         '''是否存在
@@ -167,10 +178,10 @@ class ADBPopen(object):
         '''
         '''
         while True:
-            if self.poll() == 0: 
+            if self._event.wait(0.001) == True or self.poll() == 0: 
                 if self._running: raise TimeoutError('execute timeout')
                 return self.stdout.read(), self.stderr.read()
-            time.sleep(0.1)
+            # time.sleep(0.001)
             
 class ADBClient(object):
     '''
@@ -181,7 +192,8 @@ class ADBClient(object):
         self._server_addr = server_addr
         self._server_port = server_port
         self._sock = None
-        
+        self._lock = threading.Lock()
+
     @staticmethod
     def get_client(host, port=5037):
         '''根据主机名获取ADBClient实例
@@ -192,7 +204,11 @@ class ADBClient(object):
         '''调用命令字
         '''
         cmd = cmd.replace('-', '_')
-        method = getattr(self, cmd)
+        if cmd == 'forward' and args[1] == '--remove':
+            method = getattr(self, 'remove_forward')
+            args = args[2:]
+        else:
+            method = getattr(self, cmd)
         # print args
         sync = True
         if kwds.has_key('sync'): sync = kwds.pop('sync')
@@ -204,6 +220,7 @@ class ADBClient(object):
             socket_error_count = 0
             while i < retry_count:
                 try:
+                    self._lock.acquire()
                     ret = method(*args, **kwds)
                     break
                 except socket.error, e:
@@ -212,15 +229,18 @@ class ADBClient(object):
                     if socket_error_count <= 10: i -= 1
                     time.sleep(1)
                 except AdbError, e:
-                    if 'device not found' in str(e):
+                    err_msg = str(e)
+                    if 'device not found' in err_msg:
                         return '', 'error: device not found'
-                    elif 'cannot bind to socket' in str(e):
-                        return '', str(e)
-                    elif 'device offline' in str(e):
+                    elif 'cannot bind to socket' in err_msg:
+                        return '', err_msg
+                    elif 'cannot remove listener' in err_msg:
+                        return '', err_msg
+                    elif 'device offline' in err_msg:
                         return '', 'error: device offline'
-                    elif 'Bad response' in str(e) or 'Device or resource busy' in str(e):
+                    elif 'Bad response' in err_msg or 'Device or resource busy' in err_msg or 'closed' in err_msg:  # wetest设备有时候会返回closed错误
                         # 需要重试
-                        logger.exception(u'执行%s%s %r' % (cmd, ' '.join(args), e))
+                        logger.exception('Run %s%s %r' % (cmd, ' '.join(args), e))
                     else:
                         raise RuntimeError(u'执行%s %s 命令失败：%s' % (cmd, ' '.join(args), e))
                     time.sleep(1)
@@ -231,9 +251,14 @@ class ADBClient(object):
                         self.wait_for_device(args[0], retry_count=1, timeout=300)
                         self._sock = None
                         return self.call(cmd, *args, **kwds)
-                i += 1
-                self._sock = None
-            if ret == None: raise TimeoutError(u'执行%s %s 命令失败' % (cmd, ' '.join(args)))
+                finally:
+                    i += 1
+                    if self._sock != None:
+                        self._sock.close()
+                        self._sock = None
+                    self._lock.release()
+
+            if ret == None: raise TimeoutError(u'Run cmd %s %s failed' % (cmd, ' '.join(args)))
 
             if isinstance(ret, basestring):
                 return ret, ''
@@ -242,8 +267,12 @@ class ADBClient(object):
         else:
             self._transport(args[0])  # 异步操作的必然需要发送序列号
             if cmd == 'shell':
+                self._lock.acquire()
                 self._send_command('shell:' + ' '.join(args[1:]))
-                return ADBPopen(self._sock)
+                pipe = ADBPopen(self._sock)
+                self._sock = None
+                self._lock.release()
+                return pipe
             
         
     def _connect(self):
@@ -260,12 +289,13 @@ class ADBClient(object):
         '''检查返回状态
         '''
         stat = self._sock.recv(4)
-        # print stat
         if stat == "OKAY":
             return True
         elif stat == "FAIL":
             size = int(self._sock.recv(4), 16)
             val = self._sock.recv(size)
+            self._sock.close()
+            self._sock = None
             raise AdbError(val)
         else:
             raise AdbError("Bad response: %r" % (stat,))
@@ -302,21 +332,6 @@ class ADBClient(object):
 
     def _transport(self, device_id):
         self._send_command('host:transport:%s' % device_id)
-
-#    def send_command2(self, device_id, cmd):
-#        '''
-#        '''
-#        self._transport(device_id)
-#        self._send_command(cmd)
-#        data = self._sock.recv(4096)
-#        # print 'data', data
-#        result = ''
-#        while data:
-#            result += data
-#            data = self._sock.recv(4096)
-#        self._sock.close()
-#        self._sock = None
-#        return result
 
     def devices(self):
         '''adb devices
@@ -423,7 +438,8 @@ class ADBClient(object):
         data_size = 0
         while data:
             # print 'send', len(data)
-            self._sock.send('DATA' + struct.pack('I', len(data)) + data)
+            send_data = 'DATA' + struct.pack('I', len(data)) + data
+            self._sock.send(send_data)  
             data_size += len(data)
             data = f.read(SYNC_DATA_MAX)
         f.close()
@@ -465,10 +481,40 @@ class ADBClient(object):
         self._send_command('host-serial:%s:forward:%s;%s' % (device_id, local, remote))
         return ''
     
+    def remove_forward(self, local):
+        '''adb forward --remove
+        '''
+        self._send_command('host:killforward:%s' % (local))
+        return ''
+    
+    def create_tunnel(self, device_id, remote_addr):
+        '''创建与手机中服务端的连接通道
+        '''
+        self._transport(device_id)
+        self._sock.settimeout(2)
+        try:
+            self._send_command(remote_addr)
+        except AdbError, e:
+            if 'closed' == e.args[0]:
+                return ''
+            raise
+        except socket.timeout, e:
+            logger.warn('create_tunnel timeout')
+            return ''
+        sock = self._sock
+        self._sock = None
+        return sock
+        
     def get_state(self, device_id):
         '''获取设备状态
         '''
         return self.send_command('host-serial:%s:get-state' % (device_id))
+    
+    def connect(self, device_id):
+        '''连接TCP端口
+        '''
+        result = self.send_command('host:connect:%s' % device_id)
+        return 'connected to' in result
     
     def reboot(self, device_id, **kwds):
         '''重启设备
@@ -547,7 +593,6 @@ class ADBClient(object):
 
         from PIL import Image
         return Image.frombuffer(mode, (width, height), data, 'raw', raw_mode, 0, 1)
-    
+
 if __name__ == '__main__':
-    client = ADBClient('127.0.0.1', 5037)
-    
+    pass

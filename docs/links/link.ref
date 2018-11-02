@@ -1,0 +1,15 @@
+
+.. _setup: https://qta-testbase.readthedocs.io/zh/latest/setup.html
+.. |setup| replace:: 使用前准备
+
+.. _project: https://qta-testbase.readthedocs.io/zh/latest/project.html
+.. |project| replace:: 创建和修改测试项目
+
+.. _testcase: https://qta-testbase.readthedocs.io/zh/latest/testcase.html
+.. |testcase| replace:: Testbase设计测试用例
+
+.. _qtaf-testcase: https://qta-testbase.readthedocs.io/zh/latest/api/testcase.html
+.. |qtaf-testcase| replace:: TestCase
+
+.. _qtaf-qpath: https://qta-tuia.readthedocs.io/zh/latest/qpath.html
+.. |qtaf-qpath| replace:: QPath语法和使用

@@ -1,5 +1,5 @@
 # -*- coding: UTF-8 -*-
-# 
+#
 # Tencent is pleased to support the open source community by making QTA available.
 # Copyright (C) 2016THL A29 Limited, a Tencent company. All rights reserved.
 # Licensed under the BSD 3-Clause License (the "License"); you may not use this 
@@ -11,13 +11,21 @@
 # under the License is distributed on an "AS IS" basis, WITHOUT WARRANTIES OR CONDITIONS
 # OF ANY KIND, either express or implied. See the License for the specific language
 # governing permissions and limitations under the License.
-# 
+#
 
 '''定义Android控件
 '''
+
+import cStringIO
+import os
+import tempfile
 import time
-from tuia.exceptions import ControlNotFoundError
+
 from testbase.util import LazyInit
+from tuia.exceptions import ControlNotFoundError
+
+from qt4a.androiddriver.androiddriver import AndroidDriver
+from qt4a.androiddriver.util import Deprecated, get_intersection, logger
 
 def lazy_init(func):
     '''调用到此函数时进入延迟初始化逻辑
@@ -54,7 +62,7 @@ class Window(object):
         else:
             # AndroidDriver类型，一般用于调试
             self._driver = app_or_driver
-        from qt4a.androiddriver.androiddriver import AndroidDriver
+        
         if not isinstance(self._driver, AndroidDriver):
             raise RuntimeError('参数类型错误：%s' % self._driver.__class__)
         self._wait_activity = wait_activity
@@ -62,17 +70,17 @@ class Window(object):
             self._wait_timeout = kwds.get('wait_timeout')
             self._wait_interval = kwds.get('wait_interval')
         self._lazy_obj = LazyInit(self, '_lazy_obj', self._init_window)
-        
+
     def _init_window(self):
         '''延迟初始化时执行
         '''
+        self._lazy_obj = self  # 避免多次调用初始化函数
         if self._wait_activity == True:
             wait_timeout = self._wait_timeout
-            if not wait_timeout: wait_timeout = 10
+            if not wait_timeout: wait_timeout = 12
             wait_interval = self._wait_interval
             if not wait_interval: wait_interval = 0.5
             self.wait_for_exist(wait_timeout, wait_interval)
-        self._lazy_obj = self  # 避免在post_init中再次调用初始化函数
         self.post_init()
         return self
     
@@ -92,7 +100,6 @@ class Window(object):
         
         :rtype: boolean
         '''
-        # 11/07/01 cherrypan    添加此函数
         return self._locators.has_key(control_key)
     
     @property
@@ -109,8 +116,15 @@ class Window(object):
             value = params[key]
             if isinstance(value, basestring) and value.startswith('@'):
                 params[key] = self[value[1:]]  # 使用缓存
-        return ctrltype(**params)
-    
+        if issubclass(ctrltype, View):
+            return ctrltype(**params)
+        else:
+            root = params.pop('root', None)
+            if root == None: root = self
+            params.pop('driver', None)  # delete unexpected param
+            params.pop('activity', None)
+            return ctrltype(root, ctrlkey, **params)
+            
     @lazy_init
     def __getitem__(self, index):
         '''获取index指定控件
@@ -120,23 +134,23 @@ class Window(object):
         '''
         if not (index in self._locators.keys()):
             raise NameError("%s没有名为'%s'的子控件！" % (type(self), index))
-        if not self._locators[index].has_key('instance'):
-#             root = self._locators[index]['root']
-#             if isinstance(root, basestring) and root.startswith('@'):
-#                 root_name = root[1:]
-#                 root = self._locators[root_name]
-#                 if issubclass(root['type'], AbsListView):
-#                     raise TypeError('''该节点是ListView节点的子节点，需要写成：\nprint panel.Controls['%s'][0]['%s']\n或\nfor item in panel.Controls['%s']:\n    print item['%s]''' % (root_name, index, root_name, index))
+        if not self._locators[index].has_key('_instance'):
             instance = self.__findctrl_recur(index)
-            self._locators[index]['instance'] = instance
-        return self._locators[index]['instance']
-
+            self._locators[index]['_instance'] = instance
+        return self._locators[index]['_instance']
+    
+    @Deprecated('update_locator')
     def updateLocator(self, locators):
+        self.update_locator(locators)
+    
+    def update_locator(self, locators):
+        '''更新控件定义
+        '''
         for key in locators.keys():
             locators[key]['driver'] = self._driver  # 保存driver实例
             locators[key]['activity'] = self.__class__.Activity
         self._locators.update(locators)
-
+        
     def wait_for_exist(self, timeout=10, interval=0.5):
         '''等待窗口出现
         '''
@@ -146,11 +160,10 @@ class Window(object):
         if self.Activity == '': return True
         pattern = re.compile(self.Activity)
         while time.time() - time0 < timeout:
-            current_activity = self._driver.get_current_activity()
-            # print current_activity, self.Activity
+            current_activity = self.device.current_activity
             if current_activity == self.Activity:
                 return True
-            elif pattern.match(current_activity):
+            if current_activity and pattern.match(current_activity):
                 return True
             time.sleep(interval)
         raise ControlNotFoundError('窗口：%s 未找到，当前窗口为：%s' % (self.__class__.Activity, current_activity))
@@ -165,19 +178,11 @@ class Window(object):
             raise RuntimeError('查找根节点失败')
         rect = self._driver.get_control_rect(root)
         return rect['Left'], rect['Top'], rect['Width'], rect['Height']
-    
-    @property
-    def bounding_rect(self):
-        '''窗口区域
-        to be deleted
-        '''
-        return self.rect
-    
+
     @lazy_init
     def close(self):
         '''关闭窗口
         '''
-        # self.driver.send_key('{BACK}')
         if self.Activity == '':
             self._driver.send_key('{BACK}')
         else:
@@ -187,9 +192,15 @@ class Window(object):
         timeout = 3
         time0 = time.time()
         while time.time() - time0 < timeout:
-            if self._driver.get_current_activity() != self.Activity: return
+            if self._driver._device.get_current_activity() != self.Activity: return
             time.sleep(0.5)
-
+    
+    def get_metis_view(self):
+        '''返回MetisView
+        '''
+        from mtcontrols import MetisView
+        return MetisView(self)
+    
 class Gravity(object):
     '''用于控制控件靠左、居中等位置的属性
     '''
@@ -485,7 +496,10 @@ class View(object):
                 qpath_list = qpath[1:].split(split_char)
                 err_qpath = split_char.join(qpath_list[pos:])
                 if err_qpath: err_qpath = split_char + err_qpath  # 补上前面的分隔符
-                err_msg = '控件：%s 未找到\n未找到部分路径为：【%s】' % (qpath, err_qpath)  
+                err_msg = '进程【%s】中未找到控件：%s \n未找到部分路径为：【%s】' % (self._driver._process_name, qpath, err_qpath)
+                current_activity = self.container.device.get_current_activity()
+                view_tree = self._driver.get_control_tree(current_activity)
+                logger.info('Current acvitiy %s control tree：\n%s' % (current_activity.encode('utf8'), view_tree.encode('utf8')))
                 raise ControlNotFoundError(err_msg)
         return self._hashcode
 
@@ -519,30 +533,39 @@ class View(object):
     def rect(self):
         '''left, top, width, height
         '''
-        rect = self._driver.get_control_rect(self.hashcode)
-        return rect['Left'], rect['Top'], rect['Width'], rect['Height']
-    
-    @property
-    def bounding_rect(self):
-        '''left, top, width, height
-        to be deleted
-        '''
-        return self.rect
-    
+        get_rect_interval = 0.1  # 防止频繁获取控件坐标信息
+        if not hasattr(self, '_last_get_rect_time') or (time.time() - self._last_get_rect_time) > get_rect_interval:
+            rect = self._driver.get_control_rect(self.hashcode)
+            result = rect['Left'], rect['Top'], rect['Width'], rect['Height']
+            self._last_get_rect_time = time.time()
+            self._last_rect = result
+        return self._last_rect
+
+# ifndef __RELEASE__
+#     @property
+#     def bounding_rect(self):
+#         '''left, top, width, height
+#         to be deleted
+#         '''
+#         return self.rect
+# endif
+
     @property
     @func_wrap
     def visible(self):
         '''是否可见
         '''
         return self._driver.get_control_visibility(self.hashcode)
-    
-    @property
-    def visibility(self):
-        '''是否可见
-        to be deleted
-        '''
-        return self.visible
-    
+
+# ifndef __RELEASE__
+#     @property
+#     def visibility(self):
+#         '''是否可见
+#         to be deleted
+#         '''
+#         return self.visible
+# endif
+
     @property
     @func_wrap
     def _clickable(self):
@@ -551,14 +574,16 @@ class View(object):
         CLICKABLE = 0x00004000
         flags = self._driver.get_object_field_value(self.hashcode, 'mViewFlags')
         return int(flags) & CLICKABLE == CLICKABLE
-    
+
+# ifndef __RELEASE__
     @property
     def clickable(self):
         '''是否可点击
         to be deleted
         '''
         return self._clickable
-    
+# endif
+
     @property
     @func_wrap
     def enabled(self):
@@ -568,14 +593,16 @@ class View(object):
         ENABLED_MASK = 0x00000020
         flags = int(self._driver.get_object_field_value(self.hashcode, 'mViewFlags'))
         return flags & ENABLED_MASK == ENABLE
-    
+
+# ifndef __RELEASE__
     @property
     def enable(self):
         '''是否可用
         to be deleted
         '''
         return self.enabled
-    
+# endif
+
     @property
     def content_desc(self):
         '''控件描述
@@ -604,19 +631,38 @@ class View(object):
             time.sleep(interval)
         raise ControlNotFoundError('控件：%s 未找到' % self._qpath)
 
-    def _wait_for_visible(self, timeout=10, interval=0.2):
+    def wait_for_visible(self, timeout=10, interval=0.2):
         '''等待控件可见
+        
+        :param timeout: 超时时间，单位：秒
+        :type  timeout: int/float
+        :param interval:重试间隔时间，单位：秒
+        :param interval:int/float
         '''
         time0 = time.time()
         while time.time() - time0 < timeout:
-            if self.visibility: return True
+            if self.visible: return
             time.sleep(interval)
-        return False
-
+        raise RuntimeError('Control is not visible in %s seconds' % timeout)
+    
+    def wait_for_invisible(self, timeout=10, interval=0.2):
+        '''等待控件不可见
+        
+        :param timeout: 超时时间，单位：秒
+        :type  timeout: int/float
+        :param interval:重试间隔时间，单位：秒
+        :param interval:int/float
+        '''
+        time0 = time.time()
+        while time.time() - time0 < timeout:
+            if not self.visible: return
+            time.sleep(interval)
+        raise RuntimeError('Control is not invisible in %s seconds' % timeout)
+    
     def _point_in_view(self, x, y):
         '''判断点(x, y)是否在当前View可视范围内
         '''
-        view_rect = self.bounding_rect
+        view_rect = self.rect
         if x < view_rect[0] or x >= view_rect[0] + view_rect[2]: return False
         if y < view_rect[1] or y >= view_rect[1] + view_rect[3]: return False
         return True
@@ -636,14 +682,21 @@ class View(object):
         if root_list == []: return None
         return root_list[-1]  # 获取可滚动的最顶层根
         
-    def scroll_to_visible(self):
+    def scroll_to_visible(self, root_rect=None, self_rect=None):
         '''滚动到可视区域
         '''
         root = self._get_scroll_root()
         if root == None: return 0, 0  # 不需要滚动
         
-        self_rect = self.bounding_rect
-        root_rect = root.bounding_rect
+        if not self_rect: self_rect = self.rect
+        if not root_rect: root_rect = root.rect
+        visible_rect = get_intersection(self_rect, root_rect)
+        min_clickable_area = (20, 10)  # 最小可点击区域的大小
+        _, screen_height = self.container.device.screen_size
+        if visible_rect[0] >= 0 and visible_rect[1] >= 0 and visible_rect[2] >= min_clickable_area[0] and visible_rect[3] >= min_clickable_area[1] and screen_height - (visible_rect[1] + visible_rect[3]) >= 50: 
+            logger.info('intersect area is %s' % (visible_rect,))
+            return 0, 0
+        
         if self_rect[2] > root_rect[2] or self_rect[3] > root_rect[3]:
             x_visible = True
             y_visible = True
@@ -670,7 +723,7 @@ class View(object):
         if isinstance(root, ViewPager):
             offset = self_rect[0] - root_rect[0]
             count = offset / root_rect[2]
-            root.scroll(count)
+            root.scroll(count, root_rect)
             return root_rect[2] * count, 0
 
         x_offset = y_offset = 0
@@ -694,128 +747,210 @@ class View(object):
             time.sleep(0.5)  # 测试发现，滑动后等待时间过短就点击会无效
         return x_offset, y_offset
 
+# ifndef __RELEASE__
     def scroll_into_view(self):
         '''滚动到可视区域
         to be deleted
         '''
         return self.scroll_to_visible()
-    
-    def _click(self, click_time, x_offset=0, y_offset=0, check_ret=True):
-        '''点击
-        '''
-        from androiddriver.util import get_intersection
-        root = self._get_scroll_root()
-        root_rect = None
-        if root != None: root_rect = root.rect
+# endif
+
+    def _pre_click(self, x_offset=None, y_offset=None):
+        '''点击前的处理
         
-        for _ in range(10):
-            rect = self.rect  # 再次获取当前位置，有时控件还会出现位置变化
-            if root_rect:
-                # 计算交集
-                rect = get_intersection(rect, root_rect)
-            x = rect[0] + rect[2] / 2 + x_offset
-            y = rect[1] + rect[3] / 2 + y_offset
-            
-            ret = self._driver.click(self.hashcode, x, y, click_time)
-            if not check_ret or ret: return True
-            time.sleep(0.5)
-        raise RuntimeError('click (%d, %d) 失败' % (x, y))
-    
-    def _safe_click(self, click_time, x_offset=0, y_offset=0, check_ret=True):
-        '''安全点击
+        :param x_offset: 距离控件区域左上角的横向偏移。
+        :type x_offset:  int或float
+        :param y_offset: 距离控件区域左上角的纵向偏移。
+        :type y_offset:  int或float
         
-        :param click_time: 按住的时长，单位为秒
-        :type click_time:  int
-        :param x_offset:   离控件中心点的横向偏移值
-        :type x_offset:    int
-        :param y_offset:   离控件中心点的纵向偏移值
-        :type y_offset:    int
-        :param check_ret:  是否检查点击的返回值
-        :type check_ret:   bool
+        :return 要点击的坐标
         '''
-        # 2014/09/25 banana 优化当前Activity不正确的时候的错误提示
-        from androiddriver.util import logger
+
         visible = False
         rect_valid = False
         old_rect = None
         enable = False
-
-        screen_width, screen_height = self._driver._device.screen_size
+        
+        screen_width, screen_height = self.container.device.screen_size
+        self.hashcode  # 确保控件存在
+        root = self._get_scroll_root()
+        root_rect = root.rect if root != None else [0, 0, screen_width, screen_height]
+        if root != None:
+            timeout = 2
+            time0 = time.time()
+            while time.time() - time0 < timeout:
+                if root_rect[2] == 0 or root_rect[3] == 0 or root_rect[0] < 0 or root_rect[1] < 0 or \
+                root_rect[0] + root_rect[2] > screen_width or root_rect[1] + root_rect[3] > screen_height:
+                    time.sleep(0.1)
+                    root_rect = root.rect
+                else:
+                    break
+            else:
+                logger.warn('invalid root rect: %s' % (root_rect,))
+                
         timeout = 10
         time0 = time.time()
         while time.time() - time0 < timeout:
             # 尝试操作，会出现由于控件尚未初始化完成导致获取的rect不正确的情况
             if not visible:
                 if not self.visible:
-                    time.sleep(0.2)
+                    time.sleep(0.1)
                     continue
                 else:
                     visible = True
 
             if not enable:
                 # 检查是否可用
-                enable = self.enable
+                enable = self.enabled
                 if not enable:
-                    time.sleep(0.2)
+                    time.sleep(0.1)
                     continue
-
-            rect = self.rect
-            if rect[2] == 0 or rect[3] == 0:  # 进行点击操作的控件长宽不可能为0
-                time.sleep(0.2)  # 间隔时间延长为0.2S
-                continue
-
-            for _ in range(5):
-                x_offset1, y_offset1 = self.scroll_to_visible()  # 自动滚动到可视区域
-                if abs(x_offset1) <= 5 and abs(y_offset1) <= 5:
-                    break
             
             if not rect_valid:
-                if rect[0] + rect[2] / 2 > screen_width or \
-                rect[1] + rect[3] / 2 > screen_height:  # 不能超出屏幕范围
-                    if rect[2] > screen_width or rect[3] > screen_height:
-                        # 单个控件长宽超出屏幕范围，不需要处理
-                        rect_valid = True
-                    else:
-                        logger.warn('Control is out of Screen: %s (%s, %s)' % (rect, screen_width, screen_height))
-                        time.sleep(0.1)
-                        continue
+                rect = self.rect
+                if rect[2] == 0 or rect[3] == 0:  # 进行点击操作的控件长宽不可能为0
+                    logger.debug('control %s width or height is 0 [%s]' % (self._hashcode, rect))
+                    time.sleep(0.2)  # 间隔时间延长为0.2S
+                    continue
+                
+                if not old_rect or rect != old_rect:
+                    # 等待控件坐标稳定
+                    old_rect = rect
+                    logger.debug('wait for control %s stable' % self._hashcode)
+                    time.sleep(0.2)
+                    continue
+                
+                is_scroll = False  # 控件是否滚动
+                if root != None:
+                    for _ in range(5):
+                        x_offset1, y_offset1 = self.scroll_to_visible(root_rect, rect)  # 自动滚动到可视区域
+                        if abs(x_offset1) <= 5 and abs(y_offset1) <= 5:
+                            break
+                        else:
+                            is_scroll = True
+                            rect = self.rect  # 重新获取滚动后的坐标
+                
+                visible_rect = get_intersection(rect, root_rect)
+                if is_scroll:
+                    old_rect = visible_rect
+                    time.sleep(0.2)
                 else:
-                    if old_rect == None or old_rect != rect:
-                        # 防止有些控件加载后出现位移
-                        old_rect = rect
-                        time.sleep(0.2)
-                        continue
-                    else:
-                        rect_valid = True
-
-            return self._click(click_time, x_offset, y_offset, check_ret)
+                    # 不需要再判断控件是否稳定
+                    old_rect = None
+                    rect = visible_rect
+                rect_valid = True
+            
+            if old_rect != None:
+                rect = get_intersection(self.rect, root_rect)
+                if old_rect != rect:
+                    # 防止有些控件加载后出现位移
+                    old_rect = rect
+                    time.sleep(0.2)
+                    continue
+            
+            x = (rect[0] + rect[2] / 2)
+            y = (rect[1] + rect[3] / 2)
+            if x_offset: x = rect[0] + x_offset
+            if y_offset: y = rect[1] + y_offset
+            return x, y
+        else:
+            current_activity = self._driver._device.get_current_activity()
+            if current_activity != self._activity:
+                import re
+                ret = re.compile(self._activity)
+                if not ret.match(current_activity): raise RuntimeError("当前Activity为%s，不是控件所属的Activity" % current_activity)
+            if not visible: raise RuntimeError('控件不可见')
+            if not enable: raise RuntimeError('控件不可用')
+            if not rect_valid: raise RuntimeError('控件区域错误')
+            raise RuntimeError('未知错误')
+    
+    def _click(self, click_time, x=None, y=None, check_ret=True):
+        '''具有重试逻辑的点击
         
-        current_activity = self._driver.get_current_activity()
-        if current_activity != self._activity:
-            import re
-            ret = re.compile(self._activity)
-            if not ret.match(current_activity): raise RuntimeError("当前Activity为%s，不是控件所属的Activity" % current_activity)
-        if not visible: raise RuntimeError('控件不可见')
-        if not enable: raise RuntimeError('控件不可用')
-        if not rect_valid: raise RuntimeError('控件区域错误')
-        raise RuntimeError('未知错误')
-
-    def click(self):
+        :param click_time: 按住的时长，单位为秒
+        :type click_time:  int/float
+        :param x: 点击的横坐标
+        :type x:  int/float
+        :param y: 点击的纵坐标
+        :type y:  int/float
+        :param check_ret: 是否检查点击成功
+        :type check_ret:  bool
+        '''
+        if not x or not y:
+            rect = self.rect
+            if not x: x = rect[0] + rect[2] / 2
+            if not y: y = rect[1] + rect[3] / 2
+        for _ in range(10):
+            ret = self._driver.click(self.hashcode, x, y, click_time)
+            if not check_ret or ret: return True
+            time.sleep(0.5)
+        raise RuntimeError('click (%d, %d) 失败' % (x, y))
+    
+    @func_wrap
+    def click(self, x_offset=0, y_offset=0):
         '''单击
-        '''
-        return self._safe_click(0)
-    
-    def double_click(self):
-        '''双击
-        '''
-        self._safe_click(0)
-        self._click(0)
         
-    def long_click(self, duration=1):
-        '''长按
+        :param x_offset: 距离控件区域左上角的横向偏移。
+        :type x_offset:  int或float
+        :param y_offset: 距离控件区域左上角的纵向偏移。
+        :type y_offset:  int或float
         '''
-        return self._safe_click(duration)
+        x, y = self._pre_click(x_offset, y_offset)
+        self._click(0, x, y)
     
+    def double_click(self, x_offset=0, y_offset=0):
+        '''双击
+        
+        :param x_offset: 距离控件区域左上角的横向偏移。
+        :type x_offset:  int或float
+        :param y_offset: 距离控件区域左上角的纵向偏移。
+        :type y_offset:  int或float
+        '''
+        x, y = self._pre_click(x_offset, y_offset)
+        self._click(0, x, y)
+        self._click(0, x, y)
+        
+    def multiple_click(self, count=3, x_offset=0, y_offset=0):
+        '''多次点击
+        
+        :param count: 点击多少次
+        :type count:  int
+        :param x_offset: 距离控件区域左上角的横向偏移。
+        :type x_offset:  int或float
+        :param y_offset: 距离控件区域左上角的纵向偏移。
+        :type y_offset:  int或float
+        '''
+        if count < 1: return
+        x, y = self._pre_click(x_offset, y_offset)
+        for _ in range(count):
+            self._click(0, x, y)
+    
+    @func_wrap
+    def long_click(self, duration=1, x_offset=0, y_offset=0, sync=True):
+        '''长按
+        
+        :param duration: 按住时长，单位为秒
+        :type duration:  int
+        :param x_offset: 距离控件区域左上角的横向偏移。
+        :type x_offset:  int或float
+        :param y_offset: 距离控件区域左上角的纵向偏移。
+        :type y_offset:  int或float
+        :param sync:     是否是同步调用，为True表示等到长按结束才返回，False表示立即返回
+        :type sync:      bool
+        '''
+        x, y = self._pre_click(x_offset, y_offset)
+        if sync:
+            self._click(duration, x, y, False)  # 长按不检查回调
+        else:
+            import threading
+            # 按下后立即返回
+            self._driver.drag(x, y, x, y, 0, 0, True, False)
+            def _delay_func():
+                time.sleep(duration)
+                self._driver.drag(x, y, x, y, 0, 0, False, True)
+            t = threading.Thread(target=_delay_func, args=())
+            t.start()
+            
     def wait_for_value(self, prop_name, prop_value, timeout=10, interval=0.5, regularMatch=False):
         """等待控件属性值出现, 如果属性为字符串类型，则使用正则匹配
         
@@ -825,7 +960,7 @@ class View(object):
         :param interval: 等待间隔，默认为0.5
         :param regularMatch: 参数 property_name和waited_value是否采用正则表达式的比较。默认为不采用（False）正则，而是采用恒等比较。
         """
-        from tuia.util import Timeout
+        from testbase.util import Timeout
         Timeout(timeout, interval).waitObjectProperty(self, prop_name, prop_value, regularMatch)
     
     def swipe(self, direct):
@@ -854,7 +989,13 @@ class View(object):
         else:
             raise RuntimeError('direct参数只能是：up、down、left、right中的一个')  
         self._driver.drag(x1, y1, x2, y2)
-        
+    
+    def get_metis_view(self):
+        '''返回MetisView
+        '''
+        from mtcontrols import MetisView
+        return MetisView(self)
+    
 class TextView(View):
     '''包含Text的View 
     '''
@@ -882,7 +1023,7 @@ class TextView(View):
                 value = value.decode('utf8')
             except UnicodeDecodeError:
                 raise RuntimeError('参数编码错误：%r' % value)
-        self._wait_for_visible()
+        self.wait_for_visible()
         self.disable_soft_input()  # 赋值前关闭软键盘
         for _ in range(3):
             if self._driver.set_control_text(self.hashcode, value): return
@@ -906,6 +1047,7 @@ class TextView(View):
         if ret < 0: ret += 0x100000000
         return ret
     
+    @func_wrap
     def disable_soft_input(self):
         '''禁用软键盘
         '''
@@ -950,12 +1092,12 @@ class TextView(View):
         end_offset = start_offset + len(ret.group(2))
         rect = self._get_char_rect(start_offset + 1, end_offset)
 
-        textview_rect = self.bounding_rect
-        x1 = textview_rect[0] + textview_rect[2] / 2
-        y1 = textview_rect[1] + textview_rect[3] / 2
+        textview_rect = self.rect
+        x1 = textview_rect[0]
+        y1 = textview_rect[1]
         x2 = rect[0] + rect[2] / 2
         y2 = rect[1] + rect[3] / 2
-        self._safe_click(0, x2 - x1, y2 - y1)
+        self.click(x2 - x1, y2 - y1)
         
 class EditText(TextView):
     '''输入文本框
@@ -983,6 +1125,7 @@ class CompoundButton(Button):
     '''可选按钮，一般用于实现Switch
     '''
     @property
+    @func_wrap
     def checked(self):
         '''是否已选
         '''
@@ -1031,8 +1174,8 @@ class ImageView(View):
         '''保存图片到本地
         '''
         if not save_path:
-            import os
-            tmp_path = os.environ['temp']
+            import tempfile, os
+            tmp_path = tempfile.mkdtemp()
             save_path = os.path.join(tmp_path, 'tmp.png')
         
         for _ in range(3):
@@ -1105,10 +1248,17 @@ class SeekBar(ProgressBar):
         :param new_progress: 新进度值,取值范围:0-100
         :type new_progress:  float
         '''
-        rect = self.rect
-        offset_y = 0
-        offset_x = rect[2] * new_progress / 100.0 - rect[2] / 2
-        self._safe_click(0, offset_x, offset_y)
+        timeout = 10
+        time0 = time.time()
+        while time.time() - time0 < timeout:
+            rect = self.rect
+            if rect[2] == 0 or rect[3] == 0:
+                time.sleep(0.2)
+                continue
+            break
+        offset_y = rect[3] / 2
+        offset_x = rect[2] * new_progress / 100.0
+        self.click(offset_x, offset_y)
         
 class ScrollView(FrameLayout):
     '''滚动视图
@@ -1138,7 +1288,7 @@ class ScrollView(FrameLayout):
         :type count:  int
         '''
         if y != 0: y = y * 100 / abs(y) if abs(y) < 100 else y  # 为防止在某个控件内滚动变成点击,设置最小滑动距离为100
-        rect = self.bounding_rect
+        rect = self.rect
         
         mid_x = rect[0] + rect[2] / 2  # 中点
         mid_y = rect[1] + rect[3] / 2
@@ -1170,7 +1320,7 @@ class ScrollView(FrameLayout):
         # 为避免在不可滑动区域滑动，每次滑动只在可滑动区域3/4处滑动
         time0 = time.time()
         while time.time() - time0 < 10:
-            rect = self.bounding_rect
+            rect = self.rect
             if rect[2] == 0 or rect[3] == 0:
                 time.sleep(0.5)
             else:
@@ -1196,7 +1346,7 @@ class ScrollView(FrameLayout):
         '''向上滑动一页
         '''
         if self.reach_top: return False
-        rect = self.bounding_rect
+        rect = self.rect
         scroll_y = rect[3]
 #        scroll_rect = self.driver.get_control_scroll_rect(self.hashcode)
 #        if scroll_y > scroll_rect[1]:
@@ -1209,7 +1359,7 @@ class ScrollView(FrameLayout):
         '''向下滑动一页
         '''
         if self.reach_bottom: return False
-        rect = self.bounding_rect
+        rect = self.rect
         scroll_y = rect[3]
 #        scroll_rect = self.driver.get_control_scroll_rect(self.hashcode)
 #        offset = scroll_rect[5] - scroll_rect[1] + scroll_rect[3]
@@ -1223,7 +1373,7 @@ class ScrollView(FrameLayout):
         '''滑动到顶部
         '''
         if self.reach_top: return
-        rect = self.bounding_rect
+        rect = self.rect
         while not self.reach_top:
             self.scroll(0, -rect[3])
             self.on_scroll(0, -rect[3])
@@ -1233,7 +1383,7 @@ class ScrollView(FrameLayout):
         '''滑动到底部
         '''
         if self.reach_bottom: return
-        rect = self.bounding_rect
+        rect = self.rect
         while not self.reach_bottom:
             self.scroll(0, rect[3])
             self.on_scroll(0, rect[3])
@@ -1241,16 +1391,15 @@ class ScrollView(FrameLayout):
     def _wait_for_refresh_complete(self, timeout=20):
         '''等待刷新完成
         '''
-        outer_top = self.bounding_rect[1]
+        outer_top = self.rect[1]
         if len(self.children) > 0:
             time0 = time.time()
             while time.time() - time0 < timeout:
                 children = self.children
                 if len(children) > 0:  # 没有子节点时等待
                     try:
-                        inner_top = children[0].bounding_rect[1]
+                        inner_top = children[0].rect[1]
                     except RuntimeError, e:
-                        from androiddriver.util import logger
                         logger.warn('_wait_for_refresh_complete error: %s' % e)
                         time.sleep(0.5)
                         continue
@@ -1261,11 +1410,22 @@ class ScrollView(FrameLayout):
     def pull_down_refresh(self):
         '''下拉刷新
         '''
-        rect = self.bounding_rect
+        rect = self.rect
+        while rect[2] == 0 or rect[3] == 0:
+            time.sleep(0.1)
+            rect = self.rect
         self.scroll_to_top()
-        self.scroll(0, -rect[3], 10, 0.1)  # 通过增加滑动次数增加时间，一般下拉时需要暂停一下才会触发刷新操作
+        # self.scroll(0, -rect[3], 10, 0.1)  # 通过增加滑动次数增加时间，一般下拉时需要暂停一下才会触发刷新操作
+        x = rect[0] + rect[2] / 2
+        y1 = rect[1] + rect[3] / 4
+        y2 = rect[1] + rect[3] * 3 / 4
+        
+        self._driver.drag(x, y1, x, y2, send_down_event=True, send_up_event=False)
+        time.sleep(1)  # 按住不动
+        self._driver.drag(x, y2, x, y2, send_down_event=False, send_up_event=True)
+        
         self._wait_for_refresh_complete()
-        time.sleep(1)  # 有些控件刷新完立即操作会不成功
+        time.sleep(1.5)  # 有些控件刷新完立即操作会不成功
         
 class AbsListView(ScrollView):
     '''ListView和GridView基类
@@ -1385,9 +1545,13 @@ class AbsListView(ScrollView):
         if idx < 0 or idx >= len(self._children):
             raise IndexError('index=%d错误，不在范围[0, %d]中' % (idx, len(self._children) - 1))
         return ListItem(self._children[idx], idx)
-
+    
     @property
     def reach_top(self):
+        return self.reached_top
+    
+    @property
+    def reached_top(self):
         '''滑动区域达到顶部
         '''
         for _ in range(3):
@@ -1405,9 +1569,13 @@ class AbsListView(ScrollView):
                 logger.exception(e)
                 continue
             return crect[1] >= rect[1]
-
+    
     @property
     def reach_bottom(self):
+        return self.reached_bottom
+    
+    @property
+    def reached_bottom(self):
         '''滑动区域达到底部
         '''
         if self.item_count == 0: self.update()
@@ -1430,8 +1598,8 @@ class AbsListView(ScrollView):
     def scroll_up_one_page(self):
         '''向上滑动一页
         '''
-        if self.reach_top: return False
-        rect = self.bounding_rect
+        if self.reached_top: return False
+        rect = self.rect
         scroll_y = rect[3]
         if scroll_y > self.first_position * 100:
             scroll_y = self.first_position * 100
@@ -1443,8 +1611,8 @@ class AbsListView(ScrollView):
     def scroll_down_one_page(self):
         '''向下滑动一页
         '''
-        if self.reach_bottom: return False
-        rect = self.bounding_rect
+        if self.reached_bottom: return False
+        rect = self.rect
         scroll_y = rect[3]
         offset = (self.item_count - self.last_position) * 100
         if scroll_y > offset:
@@ -1553,15 +1721,15 @@ class TabWidget(View):
         '''
         return self._driver.get_selected_tab_index(self.hashcode)
 
-class WebView(View):
-    '''Web页面容器
+class WebkitWebView(View):
+    '''4.4以下版本中的WebView
     '''
     
     def __init__(self, *args, **kwargs):
-        super(WebView, self).__init__(*args, **kwargs)
+        super(WebkitWebView, self).__init__(*args, **kwargs)
         try:
-            from qt4w.webdriver.webkitwebdriver import WebkitWebDriver
-            self._webdriver = WebkitWebDriver(self)
+            from androiddriver.webdriver import AndroidWebDriver
+            self._webdriver = AndroidWebDriver(self)
         except ImportError:
             self._webdriver = None
     
@@ -1571,24 +1739,68 @@ class WebView(View):
         if self._webdriver: return getattr(self._webdriver, attr)
         return super(WebView, self).__getattr__(attr)
     
-    @property
-    def visible_rect(self):
-        '''WebView控件可见区域的坐标信息
-        '''
-        return self.rect
-    
     def eval_script(self, frame_xpaths, script):
         '''执行JavaScript
         '''
-        from androiddriver.util import AndroidSpyError
+        from qt4a.androiddriver.util import AndroidSpyError, ControlExpiredError
         try:
             return self._driver.eval_script(self.hashcode, frame_xpaths, script)
+        except ControlExpiredError, e:
+            raise e
         except AndroidSpyError, e:
             if self._webdriver:
                 from qt4w.util import JavaScriptError
                 raise JavaScriptError(frame_xpaths, e.args[0])
             else:
                 raise e
+            
+class WebView(View):
+    '''Web页面容器
+    '''
+    
+    def __init__(self, *args, **kwargs):
+        super(WebView, self).__init__(*args, **kwargs)
+        self._is_chromium = kwargs.get('is_chromium', None)
+        if self._is_chromium == None: self._is_chromium = self.container.device.sdk_version >= 19  # Android 4.4以上使用Chromium内核
+        self._webview_impl = None
+        self._args = args
+        self._kwargs = kwargs
+        
+    @property
+    def webview_impl(self):
+        '''
+        '''
+        if self._webview_impl == None:
+            if not self._is_chromium:
+                self._webview_impl = WebkitWebView(*self._args, **self._kwargs)
+            else:
+                try:
+                    self._webview_impl = ChromiumWebView(*self._args, **self._kwargs)
+                except ImportError:
+                    # Fallback to custom WebView
+                    self._webview_impl = WebkitWebView(*self._args, **self._kwargs)
+        return self._webview_impl
+    
+    def __getattr__(self, attr):
+        '''转发给WebDriver
+        '''
+        return getattr(self.webview_impl, attr)
+    
+    def eval_script(self, frame_xpaths, script):
+        '''在指定frame中执行JavaScript，并返回执行结果（该实现需要处理js基础库未注入情况的处理）
+        
+        :param frame_xpaths: frame元素的XPATH路径，如果是顶层页面，怎传入“[]”
+        :type frame_xpaths:  list
+        :param script:       要执行的JavaScript语句
+        :type script:        string
+        '''
+        return self.webview_impl.eval_script(frame_xpaths, script)
+    
+    @property
+    def visible_rect(self):
+        '''WebView控件可见区域的坐标信息
+        '''
+        return self.rect
             
     def disable_soft_input(self):
         '''禁用软键盘
@@ -1603,13 +1815,25 @@ class WebView(View):
         :param y_offset: 与WebView左上角的纵向偏移量
         :type y_offset:  int/float
         '''
-        if x_offset != None and x_offset != None:
+        if x_offset != None or y_offset != None:
             rect = self.rect
-            x_offset = x_offset - rect[2] / 2
-            y_offset = y_offset - rect[3] / 2
-            return self._safe_click(0, x_offset, y_offset)
+            x = (rect[0] + rect[2] / 2) if not x_offset else (rect[0] + x_offset)
+            y = (rect[1] + rect[3] / 2) if not y_offset else (rect[1] + y_offset)
+            return self._click(0, x, y)
         else:
             return super(WebView, self).click()
+    
+    def long_click(self, x_offset, y_offset, duration=1):
+        '''长按WebView中的某个坐标
+        
+        :param x_offset: 与WebView左上角的横向偏移量
+        :type x_offset:  int/float
+        :param y_offset: 与WebView左上角的纵向偏移量
+        :type y_offset:  int/float
+        :param duration: 按住的持续时间
+        :type duration:  int/float
+        '''
+        return super(WebView, self).long_click(duration, x_offset, y_offset)
     
     def send_keys(self, keys):
         '''向WebView中的输入框发送按键
@@ -1633,6 +1857,115 @@ class WebView(View):
         '''
         self._driver.drag(x1, y1, x2, y2, 10, 0.1)
     
+    def screenshot(self):
+        '''当前WebView的截图
+        :return: PIL.Image
+        '''
+        from PIL import Image
+        temp_path = tempfile.mktemp('.jpg')
+        self.container.device.take_screen_shot(temp_path)
+        with open(temp_path, 'rb') as fp:
+            image_data = fp.read()
+        os.remove(temp_path)
+        image = Image.open(cStringIO.StringIO(image_data))
+        image = image.crop(self.rect)
+        return image
+    
+class ChromiumWebView(WebkitWebView):
+    '''Chromium内核的WebView
+    '''
+    
+    def __init__(self, *args, **kwargs):
+        import chrome_master
+        super(ChromiumWebView, self).__init__(*args, **kwargs)
+        self._device = self.container.device
+        self._pid = self._device.adb.get_pid(self._driver._process_name)
+        self._service_name = 'webview_devtools_remote_%d' % self._pid
+        chrome_master.set_logger(logger)
+        self._chrome_master = chrome_master.ChromeMaster((self._service_name, 80), self.create_socket)
+        self._page_debugger = self.get_debugger()
+        self._page_debugger.register_handler(chrome_master.RuntimeHandler)
+            
+    def create_socket(self):
+        '''创建socket对象
+        '''
+        try:
+            sock = self._device.adb.create_tunnel(self._service_name, 'localabstract')
+            if sock: return sock
+        except:
+            logger.warn('create socket tunnel %s failed' % self._service_name)
+        self._driver.set_webview_debugging_enabled(self.hashcode, True)
+        return self.create_socket()
+        
+    def get_page_url(self):
+        '''获取当前WebView页面的url
+        '''
+        timeout = 10
+        time0 = time.time()
+        while time.time() - time0 < timeout:
+            try:
+                ret = super(ChromiumWebView, self).eval_script([], 'location.href')
+            except:
+                logger.exception('Read page url failed')
+                return
+            if ret != 'about:blank': return ret
+            time.sleep(0.5)
+        else:
+            raise RuntimeError('Get page url failed')
+    
+    def get_debugger(self):
+        '''获取当前页面的RemoteDebugger实例
+        '''
+        url = self.get_page_url()
+        return self._chrome_master.find_page(url=url, last=True)  # 获取最后一个页面
+    
+    def convert_frame_tree(self, frame_tree, parent=None):
+        '''将frame tree转化为Frame对象
+        '''
+        from qt4w import util
+        frame = util.Frame(frame_tree['frame']['id'], frame_tree['frame'].get('name'), frame_tree['frame']['url'])
+        if parent: parent.add_child(frame)
+        if 'childFrames' in frame_tree:
+            for child in frame_tree['childFrames']:
+                self.convert_frame_tree(child, frame)
+        return frame
+        
+    def _get_frame_id_by_xpath(self, frame_xpaths, timeout=10):
+        '''获取frame id
+        '''
+        from qt4w import util
+        time0 = time.time()
+        while time.time() - time0 < timeout:
+            frame_tree = self._page_debugger.page.get_frame_tree()
+            frame = self.convert_frame_tree(frame_tree)
+            frame_selector = util.FrameSelector(self, frame)
+            try:
+                frame = frame_selector.get_frame_by_xpath(frame_xpaths)
+            except util.ControlNotFoundError:
+                pass
+            else:
+                return frame.id
+            time.sleep(0.5)
+        else:
+            raise ControlNotFoundError('Find frame %s timeout' % ''.join(frame_xpaths))
+        
+    def eval_script(self, frame_xpaths, script):
+        '''在指定frame中执行JavaScript，并返回执行结果（该实现需要处理js基础库未注入情况的处理）
+        
+        :param frame_xpaths: frame元素的XPATH路径，如果是顶层页面，怎传入“[]”
+        :type frame_xpaths:  list
+        :param script:       要执行的JavaScript语句
+        :type script:        string
+        '''
+        from chrome_master import util
+        frame_id = self._get_frame_id_by_xpath(frame_xpaths)
+        try:
+            return self._page_debugger.runtime.eval_script(frame_id, script)
+        except util.JavaScriptError, e:
+            from qt4w.util import JavaScriptError
+            raise JavaScriptError(frame_xpaths, e.message)
+        
+        
 class ViewPager(ViewGroup):
     '''横向滚动视图
     '''
@@ -1650,12 +1983,12 @@ class ViewPager(ViewGroup):
         ret = self._driver.get_object_field_value(self.hashcode, 'mItems.size')
         return int(ret)
     
-    def scroll(self, count=1):
+    def scroll(self, count=1, rect=None):
         '''左右滚动
         :param count: 滑动次数，大于0表示向右滑动，小于0表示向左滑动
         :type count:
         '''
-        rect = self.bounding_rect
+        if rect == None: rect = self.rect
         x1 = rect[0] + 5
         x2 = rect[0] + rect[2] - 5
         if count > 0:
@@ -1682,6 +2015,238 @@ class ViewPager(ViewGroup):
             
 class RadioGroup(LinearLayout):
     '''
+    '''
+    pass
+
+class RecyclerView(AbsListView):
+    '''虽然不是继承自ListView，但是可以复用其部分代码，所以从ListView继承过来
+    '''
+    @func_wrap
+    def _update_list(self):
+        self._item_count = self._driver.call_object_method(self.hashcode, 'mAdapter', 'getItemCount')
+        self._first_visible_position = -1
+        self._last_visible_position = -1
+        if self._item_count > 0:
+            self._children = self.children  # 防止每次都访问
+        if len(self._children) > 0:
+            # 获取第一个子节点的索引值
+            self._first_visible_position = self._get_first_visible_position()
+            self._last_visible_position = self._first_visible_position + len(self._children) - 1
+    
+    def _get_first_visible_position(self):
+        '''获取第一个可见节点的位置
+        ('mLayoutParams', 'getViewLayoutPosition')
+        '''
+        if hasattr(self, '_get_first_visible_position_args'):
+            return self._driver.call_object_method(self._children[0].hashcode, *self._get_first_visible_position_args)
+        
+        for args in (('mLayoutParams.mViewHolder', 'getPosition'),
+                     ('mLayoutParams.mViewHolder', 'getLayoutPosition')):
+            try:
+                result = self._driver.call_object_method(self._children[0].hashcode, *args)
+                self._get_first_visible_position_args = args
+                return result
+            except:
+                logger.exception('get first visible position by %r failed' % args)
+        
+    def _is_horizontal(self):
+        '''是否横向滑动
+        '''
+        if not hasattr(self, '__horizontal'):
+            if self.item_count >= 2:
+                self.__horizontal = self.children[0].rect[0] != self.children[1].rect[0]
+            elif self.item_count == 1:
+                x_ratio = 1.0 * self.children[0].rect[2] / self.rect[2]
+                y_ratio = 1.0 * self.children[0].rect[3] / self.rect[3]
+                self.__horizontal = x_ratio < y_ratio
+            else:
+                return False
+        return self.__horizontal
+    
+    @property
+    def reached_left(self):
+        '''滑动区域达到最左边
+        '''
+        for _ in range(3):
+            self.update()
+            if self.first_position > 0: return False
+            if self.item_count == 0: return True
+            if len(self._children) == 0: return True
+            # 此时第一个子节点肯定可见
+            rect = View.rect.fget(self)  # 子类可能会重载rect以修改滑动范围，此时不能根据子类的实现来计算
+            try:
+                crect = self._children[0].rect
+            except RuntimeError, e:
+                logger.exception(e)
+                continue
+            return crect[0] >= rect[0]
+
+    @property
+    def reached_right(self):
+        '''滑动区域达到最右边
+        '''
+        if self.item_count == 0: self.update()
+        return self.last_position == self.item_count - 1
+        
+    def scroll_left_one_page(self):
+        '''向左滑动一页
+        '''
+        if self.reached_left: return False
+        rect = self.rect
+        scroll_x = rect[2]
+        item_rect = self._children[0].rect
+        if scroll_x > self.first_position * item_rect[2]:
+            scroll_x = self.first_position * item_rect[2]
+        if scroll_x < 100: scroll_x = 100
+        self.scroll(-scroll_x, 0)
+        self.on_scroll(-scroll_x, 0)
+        return True
+
+    def scroll_right_one_page(self):
+        '''向右滑动一页
+        '''
+        if self.reached_right: return False
+        rect = self.rect
+        scroll_x = rect[2]
+        item_rect = self._children[0].rect
+        offset = (self.item_count - self.last_position) * item_rect[2]
+        if scroll_x > offset:
+            scroll_x = offset
+        self.scroll(scroll_x, 0)
+        self.on_scroll(scroll_x, 0)
+        return True
+    
+    def scroll_up_one_page(self):
+        '''向上滑动一页
+        '''
+        if self.reached_top: return False
+        rect = self.rect
+        scroll_y = rect[3]
+        child_rect = self._children[0].rect
+        if scroll_y > self.first_position * child_rect[3]:
+            scroll_y = self.first_position * child_rect[3]
+        if scroll_y < child_rect[3]: scroll_y = child_rect[3]
+        self.scroll(0, -scroll_y)
+        self.on_scroll(0, -scroll_y)
+        return True
+
+    def scroll_down_one_page(self):
+        '''向下滑动一页
+        '''
+        if self.reached_bottom: return False
+        rect = self.rect
+        scroll_y = rect[3]
+        child_rect = self._children[0].rect
+        offset = (self.item_count - self.last_position) * child_rect[3]
+        if scroll_y > offset:
+            scroll_y = offset
+        elif scroll_y < child_rect[3]:
+            scroll_y = child_rect[3]
+        self.scroll(0, scroll_y)
+        self.on_scroll(0, scroll_y)
+        return True
+    
+    def _scroll_child_to_visible(self, child_idx):
+        '''将子节点滚动到可见区域
+        '''
+        if child_idx < self.first_position:
+            # 需要往左/上滑动
+            while child_idx < self.first_position:
+                if self._is_horizontal():
+                    self.scroll_left_one_page()
+                else:
+                    self.scroll_up_one_page()
+                self._update_list()
+        elif child_idx > self.last_position:
+            # 需要往右/下滑动
+            while child_idx > self.last_position:
+                if self._is_horizontal():
+                    self.scroll_right_one_page()
+                else:
+                    self.scroll_down_one_page()
+                self._update_list()
+                
+        child = self.children[child_idx - self.first_position]
+        self_rect = self.rect
+        child_rect = child.rect
+        
+        # 保证当前项完全可见
+        
+        if child_rect[0] < self_rect[0]: 
+            # 向左滑动
+            scroll_x = self_rect[0] - child_rect[0]
+            self.scroll(-scroll_x, 0)
+        elif child_rect[0] + child_rect[2] > self_rect[0] + self_rect[2]: 
+            # 向右滑动
+            scroll_x = child_rect[0] + child_rect[2] - (self_rect[0] + self_rect[2])
+            self.scroll(scroll_x, 0)
+        elif child_rect[1] < self_rect[1]: 
+            # 向上滑动
+            scroll_y = self_rect[1] - child_rect[1]
+            self.scroll(0, -scroll_y)
+        elif child_rect[1] + child_rect[3] > self_rect[1] + self_rect[3]:
+            # 向下滑动
+            scroll_y = child_rect[1] + child_rect[3] - (self_rect[1] + self_rect[3])
+            self.scroll(0, scroll_y)
+        else:
+            return
+        self._update_list()
+        
+    def get_child(self, idx):
+        '''提供使用索引访问子元素的方法
+        '''
+        self.update()
+        item_count = self.item_count
+        if idx < 0:
+            # 允许使用负数索引
+            idx += item_count
+        if idx < 0 or idx >= item_count:
+            raise IndexError('index=%d超出list范围' % idx)
+        self._scroll_child_to_visible(idx)
+        idx = idx - self.first_position
+        if idx < 0 or idx >= len(self._children):
+            raise IndexError('index=%d错误，不在范围[0, %d]中' % (idx, len(self._children) - 1))
+        return ListItem(self._children[idx], idx)
+    
+    def __iter__(self):
+        '''迭代器
+        '''
+        self.update()
+        for i in range(self.item_count):
+            self._scroll_child_to_visible(i)
+
+            idx = i - self.first_position
+            if idx >= len(self._children):
+                # 可能之前拉到的数据不正确
+                self.update()
+            if idx < 0 or idx >= len(self._children):
+                raise IndexError('%d 不在范围[0, %d]中' % (idx, len(self._children) - 1))
+            yield ListItem(self._children[idx])
+
+class DatePicker(FrameLayout):
+    '''时间选择器
+    '''
+    def set_date(self, year, month, day): 
+        if year < 0 or month < 1 or month > 12 or day < 1 or day > 31:
+            raise RuntimeError('参数传入不符合时间要求')
+#         if self._driver._device.sdk_version < 21:
+        if self._driver._device.adb.get_sdk_version() < 21:  # 5.0以下用如下方法
+            self._driver.call_object_method(self.hashcode, 'mCurrentDate', 'set', 'void', year, month - 1, day)
+        else:
+            self._driver.call_object_method(self.hashcode, 'mDelegate.mCurrentDate', 'set', 'void', year, month - 1, day)
+
+class ActionMenuItemView(TextView):
+    '''android.support.v7.internal.view.menu.ActionMenuItemView
+    '''
+    pass
+
+class AppCompatEditText(EditText):
+    '''android.support.v7.widget.AppCompatEditText
+    '''
+    pass
+
+class AppCompatImageView(ImageView):
+    '''android.support.v7.widget.AppCompatImageView
     '''
     pass
 

@@ -1,5 +1,5 @@
 # -*- coding: utf-8 -*-
-# 
+#
 # Tencent is pleased to support the open source community by making QTA available.
 # Copyright (C) 2016THL A29 Limited, a Tencent company. All rights reserved.
 # Licensed under the BSD 3-Clause License (the "License"); you may not use this 
@@ -11,12 +11,12 @@
 # under the License is distributed on an "AS IS" basis, WITHOUT WARRANTIES OR CONDITIONS
 # OF ANY KIND, either express or implied. See the License for the specific language
 # governing permissions and limitations under the License.
-# 
+#
 
 '''Web页面测试桩代理
 '''
 
-# 2013/6/15 apple 创建
+import time
 
 # XPath库 Android 2.3以下不支持XPath
 # http://www.llamalab.com/js/xpath/XPath.js #该库不支持前后括号情况
@@ -2039,471 +2039,54 @@ window.jsxpath={"exportInstaller": true};
 window.install();
 '''
 
-class WebDriver(object):
-    '''Web页面测试桩代理
-    '''
-    js_base = '''
-    var webkit_inspector = {
-        init: function(){
-                if(window.webkit_inspector != undefined){
-                    for(var e in webkit_inspector){
-                        window.webkit_inspector[e] = webkit_inspector[e];
-                    }
-                }else{
-                    window.webkit_inspector = webkit_inspector;
-                    this.addClickListener();
-                }
-                return window.webkit_inspector;
-            },
-        scale: 1,
-        sdkVersion: %d,
-        addClickListener: function(){
-            //添加点击监听逻辑
-            document.addEventListener('click', function(event){console.log('[ClickListener](' + event.clientX + ', ' + event.clientY + ')');}, true);
-        },
-        selectNodes: function(sXPath) {  
-                console.log("selectNodes:"+sXPath);
-                var oXPathExpress = document.createExpression(sXPath, null);  
-                var oResult = oXPathExpress.evaluate(document,  
-                        XPathResult.ORDERED_NODE_ITERATOR_TYPE, null); 
-                //alert(oResult);
-                var aNodes = new Array();  
-                if (oResult != null) {  
-                    var oElement = oResult.iterateNext();  
-                    while (oElement) {  
-                        aNodes.push(oElement);  
-                        oElement = oResult.iterateNext();  
-                    }  
-                }  
-                if(aNodes.length == 0){
-                    //console.log('find node failed: '+sXPath);
-                }
-                return aNodes;  
-            },  
-        selectNode: function(sXPath) {  
-                //console.log("selectNode:"+sXPath);
-                var oXPathExpress = document.createExpression(sXPath, null);  
-                var oResult = oXPathExpress.evaluate(document,  
-                        XPathResult.FIRST_ORDERED_NODE_TYPE, null); 
-                //alert('oResult:'+oResult);
-                return oResult.singleNodeValue;  
-            },
-        getFrameInfo: function(xpath){
-                //获取指定frame信息，包括id和url
-                var result = new Array();
-                var node = this.selectNodes(xpath)[0];
-                if(node == undefined) throw new Error('find '+xpath+' failed');
-                result.push(node.id);
-                result.push(node.src);
-                return result.toString();
-            },
-                    //获取元素的纵坐标 
-        getTop: function(e){ 
-                var offset=e.offsetTop; 
-                if(e.offsetParent!=null) offset += this.getTop(e.offsetParent); 
-                return offset; 
-            },
+
+
+try:
+    from qt4w.webdriver.webkitwebdriver import WebkitWebDriver
+    from qt4w.util import JavaScriptError
+    from util import AndroidSpyError
+    class AndroidWebDriver(WebkitWebDriver):
+        '''Android中的WebDriver
+        '''
+        
+        def __init__(self, webview):
+            super(AndroidWebDriver, self).__init__(webview)
+            self._usb_xpath_lib = False
             
-            //获取元素的横坐标 
-        getLeft: function(e){ 
-                var offset=e.offsetLeft; 
-                if(e.offsetParent!=null) offset += this.getLeft(e.offsetParent); 
-                return offset; 
-            },
+        def eval_script(self, frame_xpaths, script):
+            '''在指定frame中执行JavaScript，并返回执行结果（该实现需要处理js基础库未注入情况的处理）
             
-        getElemRect: function(xpath, scale){
-                var node = this.selectNode(xpath);
-                if(node == undefined) throw new Error('find '+xpath+' failed');
+            :param frame_xpaths: frame元素的XPATH路径，如果是顶层页面，怎传入“[]”
+            :type frame_xpaths:  list
+            :param script:       要执行的JavaScript语句
+            :type script:        string
+            '''
+            try:
+                return super(AndroidWebDriver, self).eval_script(frame_xpaths, script)
+            except JavaScriptError, e:
+                err_msg = e.message
+                err_msg = err_msg.split('\n')[0]
+                if 'INVALID_EXPRESSION_ERR: DOM XPath Exception 51' in err_msg:
+                    # http://stackoverflow.com/questions/21472896/android-4-3-default-browser-xmldoc-evaluate-throws-invalid-expression-err-dom
+                    # 可能是三星手机的bug，需要使用其它的XPath库
+                    self.eval_script(frame_xpaths, xpath_lib_str)
+                    self._usb_xpath_lib = True
+                    return self.eval_script(frame_xpaths, script)
+                elif 'Result Error:' in err_msg:
+                    # 执行js超时，重试
+                    time.sleep(5)
+                    return self.eval_script(frame_xpaths, script)
+                else:
+                    raise e
+            except AndroidSpyError, e:
+                if 'java.lang.RuntimeException: Result Error:' in e.message:
+                    # 一般是页面未加载完成，等待重试
+                    time.sleep(2)
+                    return self.eval_script(frame_xpaths, script)
                 
-                var result = new Array();
-                var rect = node.getBoundingClientRect();
-                var left= rect.left;
-                if(document.body.scrollLeft < 0){
-                    left += document.body.scrollLeft;//某些产品的实现会导致scrollLeft为负数
-                }
-                result.push(left*scale);
-                result.push(rect.top*scale);
-                result.push(rect.width*scale);
-                result.push(rect.height*scale);
-                return result.toString();
-            },
-            
-        bd0: document.createElement("div"),
-        bd1: document.createElement("div"),
-        bd2: document.createElement("div"),
-        bd3: document.createElement("div"),
-            
-        showDiv: function(cnt){
-                if(cnt %% 2 != 0)
-                {
-                    document.body.appendChild(webkit_inspector.bd0);
-                    document.body.appendChild(webkit_inspector.bd1);
-                    document.body.appendChild(webkit_inspector.bd2);
-                    document.body.appendChild(webkit_inspector.bd3);
-                } else {
-                    document.body.removeChild(webkit_inspector.bd0);
-                    document.body.removeChild(webkit_inspector.bd1);
-                    document.body.removeChild(webkit_inspector.bd2);
-                    document.body.removeChild(webkit_inspector.bd3);
-                }
-                if (cnt){
-                    cnt--;
-                    setTimeout("webkit_inspector.showDiv(" + cnt + ")", 100);
-                }
-            },
-        
-        scrollIntoView: function(node){
-                var rect = node.getBoundingClientRect();
-                var clientWidth = document.documentElement.clientWidth;
-                var clientHeight = document.documentElement.clientHeight;
-                console.log("clientWidth=" + clientWidth + " clientHeight="+clientHeight + ' ' + rect.left + ' ' + rect.right + ' ' + rect.top + ' ' + rect.bottom);
-                var left= rect.left;
-                if(document.body.scrollLeft < 0){
-                    left += document.body.scrollLeft;
-                }
-                var mid_x = left + rect.width / 2;
-                var mid_y = (rect.top + rect.bottom) / 2;
-                if(mid_x <= 0 || mid_x >= clientWidth || mid_y <= 0 || mid_y >= clientHeight){//只有中点不可见才滚动
-                    if(this.sdkVersion > 10){
-                        node.scrollIntoViewIfNeeded();
-                    }else{
-                        console.log('scrollBy '+rect.left + ' ' + rect.top);
-                        var x = rect.left;
-                        var y = rect.top;
-                        scrollBy(x, y);
-                    }
-                    return "true"+clientWidth+","+clientHeight+","+rect.left+","+rect.right+","+rect.top+","+rect.bottom;
-                }
-                return false;
-        },
-        
-        highlight: function(node){
-                //console.log('scrollTop='+document.documentElement.scrollTop+' '+webkit_inspector.scale);
-                var rect = node.getBoundingClientRect();
-                var left= rect.left;
-                if(document.body.scrollLeft < 0){
-                    left += document.body.scrollLeft;
-                }
-                var top = rect.top;
-                var width = node.offsetWidth;
-                var height = node.offsetHeight;
-                //console.log('highlight:'+left+','+top+','+width+','+height);
-                webkit_inspector.bd0.setAttribute("style", "border:solid 1px red;"
-                    + "left:" + (left) + "px;top:" + (top) + "px;z-index:32767;"
-                    + "width:" + (width) + "px;height:0px;position:fixed;");
-                webkit_inspector.bd1.setAttribute("style", "border:solid 1px red;"
-                    + "left:" + (left) + "px;top:" + (top) + "px;z-index:32767;"
-                    + "width:0px;height:" + (height) + "px;position:fixed;");
-                webkit_inspector.bd2.setAttribute("style", "border:solid 1px red;"
-                    + "left:" + (left+width) + "px;top:" + (top) + "px;z-index:32767;"
-                    + "width:0px;height:" + (height) + "px;position:fixed;");
-                webkit_inspector.bd3.setAttribute("style", "border:solid 1px red;"
-                    + "left:" + (left) + "px;top:" + (top+height) + "px;z-index:32767;"
-                    + "width:" + (width) + "px;height:0px;position:fixed;");
-                webkit_inspector.showDiv(3);
-            },
-        }
-        webkit_inspector.init();
-    '''
+except ImportError:
+    pass
 
-    def __init__(self, webview_or_driver, hashcode=None):
-        self._webview = None
-        self._driver = None
-        self._device = None
-        self._hashcode = hashcode
-        if hasattr(webview_or_driver, '_device'):
-            self._driver = webview_or_driver
-            self._device = webview_or_driver._device
-        else:
-            self._webview = webview_or_driver
-            self._hashcode = webview_or_driver.hashcode
-            self._device = self._webview.container.device
-        sdk_version = self._device.sdk_version
-        self.js_base = self.js_base % sdk_version
-        self._usb_xpath_lib = False
-        if not 'XPath.js' in self.js_base and sdk_version <= 10:
-            self.js_base = xpath_lib_str + self.js_base
-            self._usb_xpath_lib = True
-            
-    def _my_encode(self, text):
-        '''
-                    对于中文，统一处理成unicode编码
-                    如“中国”，变成“\u4e2d\u56fd”
-        '''
-        if not isinstance(text, unicode):
-            text = text.decode('utf8')
-        return text.encode('raw_unicode_escape')
-
-    def _my_decode(self, text):
-        return text.decode('raw_unicode_escape')
-
-    def _xpath_encode(self, xpath):
-        xpath = xpath.replace('\'', '"')
-        return self._my_encode(xpath)
-
-    def _xpaths_encode(self, xpath_list):
-        for i in range(len(xpath_list)):
-            xpath_list[i] = self._xpath_encode(xpath_list[i])
-
-    def evalScript(self, frame_xpaths, script):
-        '''执行JS
-        '''
-        try:
-            if self._webview:
-                return self._webview.eval_script(frame_xpaths, script)
-            else:
-                self._driver.eval_script(self._hashcode, frame_xpaths, script)
-        except RuntimeError, e:
-            if str(e).find('ReferenceError: webkit_inspector is not defined') >= 0:
-                # 注入js_base
-                self.evalScript(frame_xpaths, self.js_base)
-                return self.evalScript(frame_xpaths, script)
-            elif str(e).find('XPathException:') >= 0:
-                if self._usb_xpath_lib and 'XPathException:undefined' in str(e):
-                    # xpath库有bug，找不到控件会报这个错
-                    return 0  # 表示找不到该控件
-                import time
-                time.sleep(1)  # 等待XPath解析正常，不再抛出“XPathException”
-                return self.evalScript(frame_xpaths, script)
-            elif 'INVALID_EXPRESSION_ERR: DOM XPath Exception 51' in str(e):
-                # http://stackoverflow.com/questions/21472896/android-4-3-default-browser-xmldoc-evaluate-throws-invalid-expression-err-dom
-                # 可能是三星手机的bug，需要使用其它的XPath库
-                self.evalScript(frame_xpaths, xpath_lib_str)
-                self._usb_xpath_lib = True
-                return self.evalScript(frame_xpaths, script)
-            else:
-                raise e
-
-    def readyState(self, frame_xpaths):
-        '''
-        '''
-        js = '''
-        webkit_inspector.result = document.readyState;
-        '''
-        result = self.evalScript(frame_xpaths, js)
-        # print result
-        return result
-
-    def waitForReady(self, frame_xpaths, timeout=10):
-        '''
-        '''
-        import time
-        t = time.time()
-        time.sleep(0.2)  # 等待页面开始跳转，防止过早返回
-        while time.time() - t < timeout:
-            state = self.readyState(frame_xpaths)
-            if state == 'complete':
-                return True
-            time.sleep(0.5)
-        return False
-
-    def getElementRect(self, elem_xpaths, rav=True):
-        '''
-        获取元素在页面中的相对坐标
-        @type rav: Bool
-        @param rav: 是否是相对于当前frame的坐标
-        '''
-        self._xpaths_encode(elem_xpaths)
-        frame_xpaths = elem_xpaths[:-1]
-        elem_xpath = elem_xpaths[-1]
-
-        return self._getElementRect(frame_xpaths, elem_xpath, rav)
-
-    def _getElementRect(self, frame_xpaths, elem_xpath, rav):
-        '''
-        获取元素在页面中的相对坐标
-        '''
-        self._xpaths_encode(frame_xpaths)
-        elem_xpath = self._xpath_encode(elem_xpath)
-
-        js = '''
-            webkit_inspector.result = webkit_inspector.getElemRect('%s', webkit_inspector.scale);
-        ''' % elem_xpath
-        result = self.evalScript(frame_xpaths, js)
-        result = result.replace('"', '')
-        # print result
-        result = result.split(',')
-        for i in range(len(result)):
-            result[i] = int(float(result[i]))
-        if not rav and frame_xpaths:
-            result1 = self._getElementRect(frame_xpaths[:-1], frame_xpaths[-1], rav)
-            for i in range(2):
-                result[i] += result1[i]
-        return result
-
-    def nodeExist(self, elem_xpaths):
-        '''
-        判断节点是否存在
-        '''
-        self._xpaths_encode(elem_xpaths)
-        frame_xpaths = elem_xpaths[:-1]
-        elem_xpath = elem_xpaths[-1]
-
-        js = '''
-            webkit_inspector.result = webkit_inspector.selectNodes('%s');
-            if(webkit_inspector.result.length > 0)
-                webkit_inspector.result = 1;
-            else
-                webkit_inspector.result = 0;
-        ''' % elem_xpath
-        result = self.evalScript(frame_xpaths, js)
-        result = int(result)
-        # print result, type(result)
-        if result:
-            return True
-        else:
-            return False
-
-    def getNodeListLength(self, elem_xpaths):
-        '''
-        获取节点数量
-        '''
-        self._xpaths_encode(elem_xpaths)
-        frame_xpaths = elem_xpaths[:-1]
-        elem_xpath = elem_xpaths[-1]
-
-        js = '''
-            webkit_inspector.result = webkit_inspector.selectNodes('%s');
-            webkit_inspector.result = webkit_inspector.result.length;
-        ''' % elem_xpath
-        result = self.evalScript(frame_xpaths, js)
-        return int(result)
-
-    def getProperty(self, elem_xpaths, prop_name):
-        '''
-        获取xpath指定的节点的特定值，例如：node.innerHTML
-        '''
-        self._xpaths_encode(elem_xpaths)
-        frame_xpaths = elem_xpaths[:-1]
-        elem_xpath = elem_xpaths[-1]
-
-        js = '''
-            webkit_inspector.node = webkit_inspector.selectNodes('%s')[0];
-            if(webkit_inspector.node == undefined) throw('find %s failed');
-            webkit_inspector.result = webkit_inspector.node.%s;
-        ''' % (elem_xpath, elem_xpath, prop_name)
-        return self.evalScript(frame_xpaths, js)
-
-    def setProperty(self, elem_xpaths, prop_name, value):
-        '''
-        设置xpath指定的节点的特定值，例如：node.innerHTML
-        '''
-        self._xpaths_encode(elem_xpaths)
-        frame_xpaths = elem_xpaths[:-1]
-        elem_xpath = elem_xpaths[-1]
-
-        if value is None:
-            value = ''
-        if type(value) == str:
-            value = self._my_encode(value)
-            value = '\'' + value + '\''
-        evt_js = ''
-        if prop_name == 'value':
-            evt_js = 'var evt = document.createEvent("Events");evt.initEvent("input", false, true);webkit_inspector.node.dispatchEvent(evt);'
-        js = '''
-            webkit_inspector.node = webkit_inspector.selectNodes('%s')[0];
-            if(webkit_inspector.node == undefined) throw('find %s failed');
-            webkit_inspector.result = (webkit_inspector.node.%s = %s);
-            %s
-        ''' % (elem_xpath, elem_xpath, prop_name, value, evt_js)
-        return self.evalScript(frame_xpaths, js)
-
-    def getAttribute(self, elem_xpaths, attr_name):
-        '''
-        获取属性值
-        '''
-        self._xpaths_encode(elem_xpaths)
-        frame_xpaths = elem_xpaths[:-1]
-        elem_xpath = elem_xpaths[-1]
-
-        js = '''
-            webkit_inspector.node = webkit_inspector.selectNodes('%s')[0];
-            if(webkit_inspector.node == undefined) throw('find %s failed');
-            webkit_inspector.result = webkit_inspector.node.getAttribute('%s');
-        ''' % (elem_xpath, elem_xpath, attr_name)
-        return self.evalScript(frame_xpaths, js)
-
-    def setAttribute(self, elem_xpaths, attr_name, value):
-        '''
-        设置属性值
-        '''
-        self._xpaths_encode(elem_xpaths)
-        frame_xpaths = elem_xpaths[:-1]
-        elem_xpath = elem_xpaths[-1]
-
-        if type(value) == str:
-            value = self._my_encode(value)
-            value = '\'' + value + '\''
-        js = '''
-            webkit_inspector.node = webkit_inspector.selectNodes('%s')[0];
-            if(webkit_inspector.node == undefined) throw('find %s failed');
-            webkit_inspector.result = webkit_inspector.node.setAttribute('%s', %s);
-        ''' % (elem_xpath, elem_xpath, attr_name, value)
-        return self.evalScript(frame_xpaths, js)
-
-    def _scroll_into_view(self, elem_xpaths):
-        '''滚动到可视范围
-        '''
-        import time
-        elem_xpaths0 = elem_xpaths[:]
-        self._xpaths_encode(elem_xpaths)
-        frame_xpaths = elem_xpaths[:-1]
-
-        elem_xpath = elem_xpaths[-1]
-        js = '''
-        webkit_inspector.node = webkit_inspector.selectNode('%s');
-        if(webkit_inspector.node == undefined) throw('find %s failed');
-        webkit_inspector.scrollIntoView(webkit_inspector.node);
-        ''' % (elem_xpath, elem_xpath)
-        if self.evalScript(frame_xpaths, js) == 'false': return
-        old_rect = None
-        timeout = 2
-        time0 = time.time()
-        while time.time() - time0 < timeout:
-            rect = self.getElementRect(elem_xpaths0)
-            if not old_rect or rect[0] != old_rect[0] or rect[1] != old_rect[1]:
-                old_rect = rect
-                time.sleep(0.1)
-#             else:
-#                 return self._scroll_into_view(elem_xpaths0)  # 防止未知原因导致的滑动
-
-    def highlight(self, elem_xpaths):
-        '''
-        对由xpath指定的控件做高亮
-        '''
-        # LOGGING('highlight', elem_xpaths)
-        self._scroll_into_view(elem_xpaths)
-        self._xpaths_encode(elem_xpaths)
-        frame_xpaths = elem_xpaths[:-1]
-
-        elem_xpath = elem_xpaths[-1]
-        js = '''
-        webkit_inspector.node = webkit_inspector.selectNode('%s');
-        if(webkit_inspector.node == undefined) throw('find %s failed');
-        webkit_inspector.highlight(webkit_inspector.node);
-        ''' % (elem_xpath, elem_xpath)
-        self.evalScript(frame_xpaths, js)
-        return True
-
-    def getStyle(self, elem_xpaths, style_name):
-        '''
-        '''
-        self._xpaths_encode(elem_xpaths)
-        frame_xpaths = elem_xpaths[:-1]
-        elem_xpath = elem_xpaths[-1]
-
-        js = '''
-            webkit_inspector.node = webkit_inspector.selectNode('%s');
-            if(webkit_inspector.node == undefined) throw('find %s failed');
-            webkit_inspector.result = getComputedStyle(webkit_inspector.node,null).getPropertyValue('%s');
-        ''' % (elem_xpath, elem_xpath, style_name)
-        return self.evalScript(frame_xpaths, js)
-
-    def enable_remote_debug(self, debug_id, weinre_domain):
-        '''开启远程调试
-        '''
-        script = "var e = document.getElementById('qt4a_remote_debug_script');if(e == null){var e = document.createElement('script');e.id='qt4a_remote_debug_script';e.src='http://%s/target/target-script-min.js#%s';document.body.appendChild(e);}" % (weinre_domain, debug_id)
-        self.evalScript([], script)
 
 if __name__ == '__main__':
     pass

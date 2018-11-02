@@ -1,0 +1,10 @@
+#!/system/bin/sh
+
+script_name=$0
+dir_name=${script_name%/*}
+
+base=$(cd $dir_name; pwd)
+
+echo "Inject $base/libdexloader.so into process $1"
+
+$base/droid_inject -p $1 -m $base/libdexloader.so -e load_dex -P $base/AndroidSpy.jar -P $base/cache/AndroidSpy.dex -P com.test.androidspy.ActivityInspect -P run -P "(Ljava/lang/String;)V" -P $1

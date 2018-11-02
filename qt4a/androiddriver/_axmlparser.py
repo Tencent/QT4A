@@ -5,8 +5,6 @@ copy from androguard
 不要修改该文件
 '''
 
-# 2014/3/24 apple 创建
-
 import sys
 from struct import pack, unpack
 from xml.sax.saxutils import escape
@@ -344,8 +342,8 @@ class AXMLParser:
                     self.buff.read(4)
                     self.buff.read(4)
                     (prefix, uri) = self.m_prefixuriL.pop()
-                    # del self.m_prefixuri[ prefix ]
-                    # del self.m_uriprefix[ uri ]
+                    #del self.m_prefixuri[ prefix ]
+                    #del self.m_uriprefix[ uri ]
 
                 continue
 
@@ -488,8 +486,8 @@ class AXMLParser:
             return self.sb.getString(valueString)
         # WIP
         return ""
-        # int valueData=m_attributes[offset+ATTRIBUTE_IX_VALUE_DATA];
-        # return TypedValue.coerceToString(valueType,valueData);
+        #int valueData=m_attributes[offset+ATTRIBUTE_IX_VALUE_DATA];
+        #return TypedValue.coerceToString(valueType,valueData);
 
 DIMENSION_UNITS = [ "px", "dip", "sp", "pt", "in", "mm" ]
 FRACTION_UNITS = [ "%", "%p" ]

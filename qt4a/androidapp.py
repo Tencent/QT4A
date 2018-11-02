@@ -1,5 +1,5 @@
 # -*- coding: UTF-8 -*-
-# 
+#
 # Tencent is pleased to support the open source community by making QTA available.
 # Copyright (C) 2016THL A29 Limited, a Tencent company. All rights reserved.
 # Licensed under the BSD 3-Clause License (the "License"); you may not use this 
@@ -11,37 +11,35 @@
 # under the License is distributed on an "AS IS" basis, WITHOUT WARRANTIES OR CONDITIONS
 # OF ANY KIND, either express or implied. See the License for the specific language
 # governing permissions and limitations under the License.
-# 
+#
 
 '''Android App基类
 '''
 
-# 2013/5/30 apple 创建
 
-import time
+import re
 import threading
+import time
+
 from tuia.exceptions import ControlNotFoundError
-from qt4a.androiddriver.androiddevice import AndroidDevice
 from qt4a.androiddriver.androiddriver import AndroidDriver
-from qt4a.androiddriver.util import logger, ThreadEx, EnumThreadPriority
+from qt4a.androiddriver.util import logger, ThreadEx, EnumThreadPriority, TimeoutError
 from qt4a.device import Device
+from qt4a.systemui import CrashWindow, AppNoResponseWindow, AppResolverPanel
 
 class AndroidApp(object):
     '''Android App基类
     '''
     package_name = ''
 
-    def __init__(self, process_name, device=None):
-        if isinstance(device, (AndroidDevice, Device)):
-            self._device = device
-        elif isinstance(device, (str, unicode)):
-            self._device = AndroidDevice(device)
-        else:
-            self._device = Device()
+    def __init__(self, process_name, device, init_env=True):
+        self._device = device
+
+        if not self.package_name:
+            raise RuntimeError('`%s.package_name` must be set' % self.__class__.__name__)
 
         if not self._device.is_app_installed(self.package_name):
-            time.sleep(60)  # 这段时间手Q测试中会出现设备死机的问题,此时会报应用未安装的错误,通过sleep来减少失败用例
-            raise RuntimeError('应用：%s 尚未安装' % self.package_name)
+            raise RuntimeError('APP: %s not installed' % self.package_name)
 
         self._drivers = {}  # 如果应用存在多个被测进程，就会有多个driver
         self._process_name = process_name  # 主程序名
@@ -50,10 +48,14 @@ class AndroidApp(object):
         self._monitor_run = True
         
         self._app_crashed = False
-        self._device.wake_screen()  # 唤醒屏幕
-        self._device.unlock_keyguard()  # 解屏幕锁
-        self._close_other_window()
         self._main_thread_id = threading.current_thread().ident  # 创建该对象的线程一定是主线程
+        
+        if not init_env: return  # 一般是调试状态
+        
+        self._device.unlock_keyguard()  # 解屏幕锁
+        self._device.wake_screen()  # 唤醒屏幕
+        self._close_other_window()
+
         self._monitor_thread = None
         self.start_monitor()
         self.add_monitor_task(self._detect_crash_window)
@@ -99,8 +101,22 @@ class AndroidApp(object):
         '''
         self._drivers[process_name].close()
         del self._drivers[process_name]
-
-    def wait_for_activity(self, activity, timeout=5, interval=0.5):
+    
+    def close_activity(self, activity):
+        '''关闭Activity
+        '''
+        for process_name in self._drivers:
+            driver = self._drivers[process_name]
+            try:
+                ret = driver.close_activity(activity)
+                if ret == 0: return True
+                elif ret == -2: return False
+                logger.debug('close activity in %s return %s' % (process_name, ret))
+            except ValueError:
+                continue
+        return False
+    
+    def wait_for_activity(self, activity, timeout=15, interval=0.5):
         '''等待Activity打开
         
         :param activity: Activtiy名称
@@ -115,10 +131,9 @@ class AndroidApp(object):
             if self.crashed:
                 raise RuntimeError('%s Crashed' % self.__class__.__name__)
             current_activity = self.device.get_current_activity()
-            # print 'current_activity', current_activity
             if current_activity == activity: return True
             time.sleep(interval)
-        raise ControlNotFoundError('等待Activity：%s 超时，当前Activity: %s' % (activity, current_activity))
+        raise ControlNotFoundError('Wait for Activity %s timeout, current Activity: %s' % (activity, current_activity))
 
     def drag(self, direction='right', count=1):
         '''滑动屏幕，适合一大块区域（如引导屏）的滑动，无需关心具体的控件
@@ -151,23 +166,17 @@ class AndroidApp(object):
             self.get_driver().drag(x1, y1, x2, y2)
             time.sleep(0.5)
 
-    def shake(self, process_name='', duration=4, interval=0.05):
-        '''模拟摇一摇功能
-        
-        :param process_name: 要模拟的进程名，默认为主进程
-        :type process_name:  string
-        :param duration:     持续时间，单位：秒
-        :type duration:      int
-        :param interval:     发送的时间间隔
-        :type interval:      float
-        '''
-        return self.get_driver(process_name).shake(duration, interval)
-
     def send_back_key(self):
         '''发送返回按键
         '''
-        self._device.send_key(4)
-    
+        if self.device.is_rooted():
+            self.device.send_key(4)
+        else:
+            res = self.device.send_key(4)
+            if not res:
+                logger.info('send key 4 return False')
+                self.run_shell_cmd('input keyevent 4')
+            
     def send_key(self, key):
         '''发送单个按键
         :param key: 发送的按键字符串
@@ -184,62 +193,80 @@ class AndroidApp(object):
         '''发送菜单键
         '''
         self.get_driver().send_key('{MENU}')
-
+    
+    def send_enter_key(self):
+        '''发送回车键
+        '''
+        self._device.send_text('\n')
+        
     def close(self):
         '''关闭所有打开的driver
         '''
-        # self.remove_monitor_task(self._detect_crash_window)
         self.remove_all_task()
         self.stop_monitor()
         for key in self._drivers.keys():
             self._drivers[key].close()
         self._drivers = {}
+    
+    def run_shell_cmd(self, cmdline, **kwargs):
+        '''root下使用root权限执行命令，非root下使用应用权限执行命令
+        '''
+        if self._device.is_rooted():
+            return self._device.run_shell_cmd(cmdline, True, **kwargs)
+        else:
+            return self._device.run_as(self.package_name, cmdline, **kwargs)
 
     def _close_other_window(self):
         '''关闭会影响用例执行的窗口
         '''
-        import re
-        from systemui import CrashWindow, AppNoResponseWindow, AppResolverPanel, StatusBar
         current_activity = self.device.get_current_activity()
         logger.debug('current_activity: %s' % current_activity)
-        pattern = re.compile(AppNoResponseWindow.Activity)
-        if current_activity == StatusBar.Activity:
-            self.send_back_key()
-        elif current_activity == CrashWindow.Activity or pattern.match(current_activity):
-            # 如果是Crash窗口
-            self.device.send_key(66)
-            timeout = 10
-            time0 = time.time()
-            while time.time() - time0 < timeout:  # 等待窗口消失
-                current_activity = self.device.get_current_activity()
-                if current_activity == CrashWindow.Activity or pattern.match(current_activity):
+        if current_activity:
+            pattern = re.compile(AppNoResponseWindow.Activity)
+            if current_activity == 'StatusBar':
+                self.send_back_key()
+            elif current_activity == CrashWindow.Activity or pattern.match(current_activity) or 'Application Not Responding' in current_activity:
+                # 如果是Crash窗口
+                self.device.send_key(66)
+                timeout = 10
+                time0 = time.time()
+                while time.time() - time0 < timeout:  # 等待窗口消失
+                    current_activity = self.device.get_current_activity()
+                    if current_activity and (current_activity == CrashWindow.Activity or pattern.match(current_activity) or 'Application Not Responding' in current_activity):
+                        time.sleep(0.5)
+                        self.device.send_key(66)
+                    else:
+                        return
+                self.device.send_key(4)
+            elif not '.' in current_activity:
+                # 一般这种情况是某种弹窗
+                timeout = 10
+                time0 = time.time()
+                while not '.' in current_activity and time.time() - time0 < timeout:  # 等待窗口消失
+                    self.device.send_key(61)
                     time.sleep(0.5)
                     self.device.send_key(66)
+                    time.sleep(1)
+                    current_activity = self.device.get_current_activity()
+                    if not current_activity:  # 黑屏
+                        time.sleep(3)
+                        return
+            else:
+                self.device.send_key(4)
+        else:
+            time0 = time.time()
+            timeout = 10
+            while time.time() - time0 < timeout:
+                if not self.device.get_current_activity():
+                    time.sleep(1)
                 else:
                     return
-            self.device.send_key(4)
-        elif current_activity == AppResolverPanel.Activity:
-            self.device.send_key(4)
-            
-    def _handle_system_crash_window(self):
-        '''处理系统Crash窗口
-        '''
-        from systemui import CrashWindow
-        crash_window = CrashWindow.findCrashWindow(self)
-        if not crash_window: return False
-        logger.error('detect crash window')
-        crash_window.close()
-        return True
 
     def _detect_crash_window(self):
         '''检测Crash窗口
         '''
-        from systemui import CrashWindow
         current_activity = self.device.get_current_activity()
-        # print current_activity
         if current_activity == CrashWindow.Activity:
-            # TODO:Crash时测试桩无法获取当前进程名
-            # if self._handle_system_crash_window(): return True
             self.on_crashed()
             return True
 
@@ -250,18 +277,19 @@ class AndroidApp(object):
         self._app_crashed = True
         self._monitor_run = False
 
-    def add_monitor_task(self, task, last_time=0):
+    def add_monitor_task(self, task, last_time=0, interval=1):
         '''添加监控任务
         '''
         if last_time > 0: last_time += time.time()
-        self._monitor_task_list.append((task, last_time))
-        logger.debug('add task: %s' % task.__name__)
+        task = {'task': task, 'end_time': last_time, 'interval': interval, 'last_exec_time': 0}
+        self._monitor_task_list.append(task)
+        logger.debug('add task: %s' % task['task'].__name__)
         
     def remove_monitor_task(self, task):
         '''移除监控任务
         '''
         for item in self._monitor_task_list:
-            if item[0] == task:
+            if item['task'] == task:
                 self._monitor_task_list.remove(item)
                 logger.debug('remove task: %s' % task.__name__)
                 return True
@@ -281,14 +309,16 @@ class AndroidApp(object):
         t.setDaemon(True)
         t.start()
         self._monitor_thread = t
+        self._device.adb.add_no_log_thread(t)
         
     def stop_monitor(self):
         '''停止检测
         '''
-        if not self._monitor_thread: return
+        if not hasattr(self, '_monitor_thread') or self._monitor_thread: return
         self._monitor_run = False
         if self._monitor_thread.is_alive():
             self._monitor_thread.join(30)
+        self._device.adb.remove_no_log_thread(self._monitor_thread)
         self._monitor_thread = None
         
     def monitor_thread(self):
@@ -296,15 +326,16 @@ class AndroidApp(object):
         '''
         interval = 1
         while self._monitor_run:
-            for task, task_end_time in self._monitor_task_list:
+            for task in self._monitor_task_list:
                 time_now = time.time()
-                if task_end_time == 0 or (task_end_time > 0 and time_now < task_end_time):
-                    try:
-                        task()
-                        time.sleep(0.1)
-                    except:
-                        logger.exception('run task %s failed' % task.__name__)
-                        self._resume_main_thread()  # 防止出错后主线程阻塞一段时间
+                if task['end_time'] == 0 or (task['end_time'] > 0 and time_now < task['end_time']):
+                    if time.time() - task['last_exec_time'] >= task['interval']:
+                        try:
+                            task['task']()
+                        except:
+                            logger.exception('run task %s failed' % task['task'].__name__)
+                            self._resume_main_thread()  # 防止出错后主线程阻塞一段时间
+                        task['last_exec_time'] = time.time()
             time.sleep(interval)
         
     def get_string_resource(self, string_id, lang=''):
@@ -399,41 +430,25 @@ class AndroidApp(object):
         '''设置测试线程优先级
         '''
         self.get_driver(process_name).set_thread_priority(priority)
-    
-    def set_location(self, latitude, longitude, process_name=''):
-        '''给应用设置位置信息
-        
-        :param latitude: 纬度
-        :type latitude:  float
-        :param longitude:经度
-        :type longitude: float
+
+    def grant_all_runtime_permissions(self):
+        '''授予所有运行时权限
         '''
-        from androiddriver.androidhookdriver import AndroidHookDriver
-        driver = AndroidHookDriver(self.get_driver(process_name))
-        return driver.set_location(latitude, longitude)
+        if self.device.sdk_version < 23: return
+        return self._device.grant_all_runtime_permissions(self.package_name)
     
     def enable_system_alert_window(self):
         '''允许弹出悬浮窗口
         '''
         return self._device.set_app_permission(self.package_name, 'SYSTEM_ALERT_WINDOW', True)
     
-class AndroidBrowser(AndroidApp):
-    '''浏览器应用
-    '''
-    def __init__(self, url, device=None):
-        process_name = 'com.android.browser'
-        super(AndroidBrowser, self).__init__(process_name, device)
-        self.device.kill_process(process_name)
-        self.device.start_activity('com.android.browser/.BrowserActivity', 'android.intent.action.VIEW', data_uri=url)
-
-    @staticmethod
-    def open_url(url, device=None):
-        return AndroidBrowser(url, device)
-
-    @property
-    def webpage(self):
-        from systemui import BrowserWebPage
-        return BrowserWebPage(self)
+    def enable_media_permission(self):
+        '''允许截屏和录音
+        Capture the device's display contents and/or audio
+        '''
+        if self.device.sdk_version < 21: return
+        return self._device.set_app_permission(self.package_name, 'PROJECT_MEDIA', True)
 
 if __name__ == '__main__':
     pass
+
