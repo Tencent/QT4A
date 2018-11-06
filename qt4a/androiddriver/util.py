@@ -79,6 +79,36 @@ class PermissionError(RuntimeError):
     '''
     pass
 
+class OutStream(object):
+    '''重载输出流，以便在cmd中显示中文
+    '''
+    def __init__(self, stdout):
+        self._stdout = stdout
+    
+    @property
+    def encoding(self):
+        return 'utf8'
+    
+    def write(self, s):
+        if not isinstance(s, unicode):
+            try:
+                s = s.decode('utf8')
+            except UnicodeDecodeError:
+                try:
+                    s = s.decode('gbk')  # sys.getdefaultencoding()
+                except UnicodeDecodeError:
+                    s = 'Decode Error: %r' % s
+                    # s = s.encode('raw_unicode_escape') #不能使用GBK编码
+        try:
+            ret = self._stdout.write(s)
+            self.flush()
+            return ret
+        except UnicodeEncodeError:
+            pass
+ 
+    def flush(self):
+        return self._stdout.flush()
+    
 def mkdir(dir_path):
     '''创建目录
     '''
@@ -111,7 +141,7 @@ def gen_log_path():
 
 logger = logging.getLogger('qt4a')
 logger.setLevel(logging.DEBUG)
-logger.addHandler(logging.StreamHandler(sys.stdout))
+logger.addHandler(logging.StreamHandler(OutStream(sys.stdout)))
 fmt = logging.Formatter('%(asctime)s %(thread)d %(message)s')  # %(filename)s %(funcName)s
 logger.handlers[0].setFormatter(fmt)
 logger.handlers[0].setLevel(logging.WARNING)  # 屏幕日志级别为WARNING
@@ -446,36 +476,6 @@ class Mutex(object):
         
     def __exit__(self, type, value, traceback):
         self._lock.release()
-
-class OutStream(object):
-    '''重载输出流，以便在cmd中显示中文
-    '''
-    def __init__(self, stdout):
-        self._stdout = stdout
-    
-    @property
-    def encoding(self):
-        return 'utf8'
-    
-    def write(self, s):
-        if not isinstance(s, unicode):
-            try:
-                s = s.decode('utf8')
-            except UnicodeDecodeError:
-                try:
-                    s = s.decode('gbk')  # sys.getdefaultencoding()
-                except UnicodeDecodeError:
-                    s = 'Decode Error: %r' % s
-                    # s = s.encode('raw_unicode_escape') #不能使用GBK编码
-        try:
-            ret = self._stdout.write(s)
-            self.flush()
-            return ret
-        except UnicodeEncodeError:
-            pass
- 
-    def flush(self):
-        return self._stdout.flush()
 
 class ThreadEx(threading.Thread):
     '''可以捕获异常的线程类

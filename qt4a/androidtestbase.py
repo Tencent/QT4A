@@ -23,8 +23,11 @@ import shutil
 import tempfile
 import traceback
 
+import testbase.testcase as tc
 from testbase import logger as qta_logger
-from testbase.testresult import EnumLogLevel 
+from testbase.testresult import EnumLogLevel
+from testbase.conf import settings
+from tuia.env import run_env, EnumEnvType
 
 from androiddriver import util
 from device import Device, DeviceProviderManager
@@ -39,13 +42,6 @@ class EnumCrashType(object):
     NATIVE_NONE_SYSTEM_CRASH = "Native非系统Crash" 
     JAVA_CRASH = "Java Crash"
     OTHER_CRASH = "其他类型Crash"
- 
-sys.stdout = sys.stderr = util.OutStream(sys.stdout)  # 重定向输出流
-
-import testbase.testcase as tc
-import testbase.logger as logger
-from testbase.conf import settings
-from tuia.env import run_env, EnumEnvType
 
 def get_valid_file_name(file_name):
     '''过滤掉文件名中的非法字符
@@ -82,7 +78,7 @@ class AndroidTestBase(tc.TestCase):
                     break
                 time.sleep(0.1)
             else:
-                logger.warn('wait for record screen thread exit timeout')
+                qta_logger.warn('wait for record screen thread exit timeout')
             
         self._save_logcat()
         self._save_qt4a_log()
@@ -92,9 +88,9 @@ class AndroidTestBase(tc.TestCase):
                 if device_name not in self._logcat_debug_level_list:
                     msg = '设备:%s中的logcat没有debug级别的日志，请检查手机日志级别设置 ' % device_name
                     if self._check_log_called:
-                        logger.error(msg)
+                        qta_logger.error(msg)
                     else:
-                        logger.warn(msg)
+                        qta_logger.warn(msg)
 
         if hasattr(settings, 'QT4A_DEVICE_HOSTS'):
             for device in Device.device_list:
@@ -127,7 +123,7 @@ class AndroidTestBase(tc.TestCase):
         try:    
             self.test_result.log_record(EnumLogLevel.Environment, '申请 %s 设备成功：%s(%s)' % ('Android', device.model, device.device_id), {"device":device.imei})
         except Exception, e:
-            logger.warn('GetDeviceImei error:%s' % e)
+            qta_logger.warn('GetDeviceImei error:%s' % e)
 
         if hasattr(settings, 'QT4A_DEVICE_HOSTS'):
             device_hosts = settings.QT4A_DEVICE_HOSTS
@@ -149,7 +145,7 @@ class AndroidTestBase(tc.TestCase):
             if not hasattr(self, '_record_thread_status_dict'):
                 self._record_thread_status_dict = {}
             self._record_thread_status_dict[device.device_id] = False
-            logger.info('%s start record screen thread' % device.device_id)
+            qta_logger.info('%s start record screen thread' % device.device_id)
             t = util.ThreadEx(target=self._record_screen_thread, args=(device,), name='Device Record Screen Thread')
             t.setDaemon(True)
             t.start()
@@ -221,7 +217,7 @@ class AndroidTestBase(tc.TestCase):
             video_path = self.__class__.__name__ + '_' + get_valid_file_name(device.device_id) + '_' + str(int(time.time())) + '.mp4'
             result = Device.screen_frame_to_video(frame_list, framerate, video_path)
             if result == None:
-                logger.warn('opencv not installed')
+                qta_logger.warn('opencv not installed')
             else:
                 self.test_result.info('最近15秒录屏', attachments={video_path: video_path})
             shutil.rmtree(save_dir)

@@ -59,7 +59,13 @@ def list_data_files(packages):
             dirname = '/'.join(package.split('.')[0:-1])    
             data_files.append(dirname+'/'+package.split('.')[-1])
     return data_files 
- 
+
+def get_data_files():
+    data_file_list = ["requirements.txt"]
+    if os.path.isfile(os.path.join(BASE_DIR, "version.txt")):
+        data_file_list.append("version.txt")
+    return data_file_list
+
 def get_description():
     with open(os.path.join(BASE_DIR, "README.md"), "r") as fh:
         return fh.read()
@@ -74,12 +80,13 @@ if __name__ == "__main__":
             'qt4a.androiddriver': ['tools/*', 'tools/arm64-v8a/*', 'tools/armeabi-v7a/*', 'tools/armeabi/*', 'tools/x86/*'],
             'qt4a.apktool': ['tools/*'],
         },
-        data_files=[(".", ["requirements.txt", "version.txt"])], #list_data_files(DATA_PACKAGES),
+        data_files=[(".", get_data_files())], #list_data_files(DATA_PACKAGES),
         long_description=get_description(),
         long_description_content_type="text/markdown",
         author="Tencent",
         license="Copyright(c)2010-2018 Tencent All Rights Reserved. ",
         install_requires=parse_requirements(),
+        entry_points={'console_scripts': ['qt4a-manage = qt4a.management:qt4a_manage_main'], },        
         classifiers=[
           "Programming Language :: Python :: 2.7",
           "Operating System :: OS Independent",

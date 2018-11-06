@@ -71,39 +71,12 @@ def copy_android_driver(device_id_or_adb, force=False, root_path=None, enable_ac
     '''
     from adb import ADB
     from util import AndroidPackage, version_cmp
-    if not device_id_or_adb:
-        device_list = ADB.list_device()
-        if len(device_list) == 0:
-            raise RuntimeError('当前没有插入手机')
-        elif len(device_list) == 1:
-            device_id = device_list[0]
-        elif len(device_list) > 1:
-            text = '当前设备列表:\n'
-            for i, dev in enumerate(device_list):
-                text += '%d. %s\n' % (i, dev)
-            print(text)
-            while True:
-                print device_list
-                result = raw_input('请输入要拷贝测试桩的设备序号:')
-                if result.isdigit():
-                    if int(result) > len(device_list):
-                        sys.stderr.write('序号范围为: [1, %d]' % len(device_list))
-                        time.sleep(0.1)
-                        continue
-                    device_id = device_list[int(result) - 1]
-                else:
-                    if not result in device_list:
-                        sys.stderr.write('设备序列号不存在: %r' % result)
-                        time.sleep(0.1)
-                        continue
-                    device_id_or_adb = result
-                break
-            print '您将向设备"%s"拷贝测试桩……' % device_id_or_adb
     
     if isinstance(device_id_or_adb, ADB):
         adb = device_id_or_adb
     else:
-        adb = ADB.open_device(device_id)
+        adb = ADB.open_device(device_id_or_adb)
+        
     if not root_path: 
         current_path = os.path.abspath(__file__)
         if not os.path.exists(current_path) and '.egg' in current_path:
@@ -120,16 +93,16 @@ def copy_android_driver(device_id_or_adb, force=False, root_path=None, enable_ac
 
     current_version_file = os.path.join(root_path, 'version.txt')
     f = open(current_version_file, 'r')
-    vurrent_version = int(f.read())
+    current_version = int(f.read())
     f.close()
     
     if not force:
         version_file = dst_path + 'version.txt'
         version = adb.run_shell_cmd('cat %s' % version_file)
     
-        if version and not 'No such file or directory' in version and vurrent_version <= int(version):
+        if version and not 'No such file or directory' in version and current_version <= int(version):
             # 不需要拷贝测试桩
-            logger.warn('忽略本次测试桩拷贝：当前版本为%s，设备中版本为%s' % (vurrent_version, version))
+            logger.warn('忽略本次测试桩拷贝：当前版本为%s，设备中版本为%s' % (current_version, version))
             return
     
     try:
