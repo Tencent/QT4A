@@ -16,7 +16,6 @@ deploy:
   skip_cleanup: true
   provider: pypi
   user: "qta"
-  server: https://test.pypi.org/simple/
   password:
     secure: "A5WWTsgbmlNOrlI4zwwtAbmdBgghVKIqIMYOiMu2No9kVmGBdpB9GJb4xbmGM68ZZI1xjOtfqei8TBXFPmW2bUkhVDOEbwFFzp5qOh+lSlr+m4BfT5N+AcjDsr//zNTpqFzwzqqFXeeLp0FxqeeUmotU2YgCeWP5T9/oHthC1kkes2Ml2CMWifxWZu/cktFGwhjHma2+HxEtq9YuVKwWUytwrSQsEDedLTv7f76gAWwXUYuHR2ckxy//AZSUN3KzaznC4Q1C9obfvozIIXqHltOQGMXMhQ41BbyVt25ZB+bYG9O1UNFbmLrzi6Ct4nD1jStKFysbLmYwV8InfgXa+nNbgw2YYpDYUOhZsZw4s99Ldhj4UrKvDGROvSiBm81SAdHvxQhipEndKFO6wZxgsEcaGcbkuk413/O3l7QQLl0FsCRQks8ClMESnMZCpww3y9RwtzQNgCD505zksnrM2Gt4R+R18jNnxNStYGXxJ1DB44T8IfeOEz0zitCSrP6aXrSp0Lq6ET5qyKto1zN0n4Na3y05h+6VwAql1XgFjsH7fbd6XD2zU9AZWRcl1ctVj2uPdNmmnuO0tedvZaniuWcmoVeuA0fLb5c3H2hDPPilaeKGsEgkCu4kIR33FH1Napc3D/ZM3AB76a67cZqvKCyGEsk/TJGjXv1c3CTtlZA="
   on:
