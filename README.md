@@ -12,7 +12,10 @@
  
 QT4A should be used with [QTAF](https://github.com/Tencent/QTAF), please check it first.
 
-[Demo project code](https://github.com/qtacore/QT4ADemoProj)
+### Links
+* [Demo Project](https://github.com/qtacore/QT4ADemoProj)
+* [Usage Document](https://qt4a.readthedocs.io/zh_CN/latest/index.html)
+* [Design Document](https://github.com/Tencent/QT4A/blob/master/design.md)
 
 -------------------------
 
@@ -29,8 +32,11 @@ QT4A (Quick Test for Android)，基于QTA提供面向Android应用的UI测试自
 
 QT4A需要和[QTAF](https://github.com/Tencent/QTAF)一起使用，请先参考QTAF的使用
 
-[Demo项目代码](https://github.com/qtacore/QT4ADemoProj)
+### 链接
 
+* [Demo项目代码](https://github.com/qtacore/QT4ADemoProj)
+* [使用文档](https://qt4a.readthedocs.io/zh_CN/latest/index.html)
+* [设计文档](https://github.com/Tencent/QT4A/blob/master/design.md)
 
 ------------------------------
 
