@@ -1,0 +1,22 @@
+language: python
+matrix:
+  include:
+  - os: linux
+    dist: trusty
+    sudo: false
+    python: '2.7'
+    env: BUILD_SDIST=true
+install:
+- pip install -r requirements.txt
+script:
+- python test/__init__.py
+before_deploy: echo $TRAVIS_TAG | sed 's/^.//' > version.txt
+deploy:
+  skip_cleanup: true
+  provider: pypi
+  user: qta
+  password:
+    secure: iDrGziLMeVApNJQ0PXxKmBqzADIJ76AnpQJ2hh488mp8h3SX1OJ3Etoal586wRGzxBjoNiDpl2HXZOyzMUkVlYg1jRih0nim0TwiEE/abUE7lZ28HGMryDi2x7jnoPoNuwCj9Nwp0FJL+6sHd/4F9fnicJ7u6CyWBBunYxDsu4tnPev2hYQbDsLXUcNBCnvfjRjwSbQYG8jcdGtmAjXjK8qx6skQ0LjgWMrmSE9Vy6s+HFh4AjGOS8SmaK8cQVCT1POXbfGfLUuri1T8WR3W4y+himYMXuZJ9/LHR5778Q04LgsqJwYwtJKd6MOy6sbIyFyfJ6JnuBOjAzzrc7dyGnMxf2hYnO5lQd2QXNK2whAkS+pXGGGqIujgm0JyKXzkTr+95G8Sumc+S3z5OslblTFyg9ssn7Lt67dEy5iFU1y2X3FJ2pJbJi/wOsSNLDufgxNg2O3gjc3l181QbnZoloCSiKnIXfl9Y4u4kWkICOEDBd6l+roq+GHgYoAg6Kqly0UN9pim7FJpxCHzocxBSm7709iKbQPsnHLxJwUtrX6DIEjLQiKAiT9eJQTQCU9ap13PlRPMNE+EfB7TWQ/MLJaR0rrjmL282gU5wmQ5mIPrvrd0l46pqLW+Q32h3hlCRPPBRxtsSrp8O2ut5o35vUsqBtE8IF6LXGnlgYujL3c=
+  true:
+    tags: true
+    condition: $TRAVIS_TAG =~ v[0-9]+\.[0-9]+\.[0-9]+ && $BUILD_SDIST=true
