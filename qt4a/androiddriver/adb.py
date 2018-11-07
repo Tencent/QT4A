@@ -35,17 +35,21 @@ except:
 cur_path = os.path.dirname(os.path.abspath(__file__))
 
 def get_adb_path():
-    for root in os.environ.get('path').split(';'):
-        adb_path = os.path.join(root, 'adb.exe')
+    if sys.platform == 'win32':
+        sep = ';'
+        file_name = 'adb.exe'
+    else:
+        sep = ':'
+        file_name = 'adb'
+        
+    for root in os.environ.get('PATH').split(sep):
+        adb_path = os.path.join(root, file_name)
         if os.path.exists(adb_path):  # 优先使用环境变量中指定的 adb
             return adb_path
-    return os.path.join(cur_path, 'tools', 'adb.exe')
+        
+    return os.path.join(cur_path, 'tools', 'adb', sys.platform, file_name)
 
-if sys.platform == 'win32':
-    adb_path = get_adb_path()
-    os.environ['QTA_ADB_PATH'] = adb_path
-else:
-    adb_path = 'adb'
+adb_path = get_adb_path()
     
 def is_adb_server_opend():
     '''判断ADB Server是否开启
@@ -1642,5 +1646,4 @@ class ADB(object):
 
 if __name__ == '__main__':
     pass
-    
     
