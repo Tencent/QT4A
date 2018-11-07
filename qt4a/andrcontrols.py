@@ -21,7 +21,7 @@ import os
 import tempfile
 import time
 
-from testbase.util import LazyInit
+from testbase.util import LazyInit, Timeout
 from tuia.exceptions import ControlNotFoundError
 
 from qt4a.androiddriver.androiddriver import AndroidDriver
@@ -541,30 +541,12 @@ class View(object):
             self._last_rect = result
         return self._last_rect
 
-# ifndef __RELEASE__
-#     @property
-#     def bounding_rect(self):
-#         '''left, top, width, height
-#         to be deleted
-#         '''
-#         return self.rect
-# endif
-
     @property
     @func_wrap
     def visible(self):
         '''是否可见
         '''
         return self._driver.get_control_visibility(self.hashcode)
-
-# ifndef __RELEASE__
-#     @property
-#     def visibility(self):
-#         '''是否可见
-#         to be deleted
-#         '''
-#         return self.visible
-# endif
 
     @property
     @func_wrap
@@ -575,14 +557,12 @@ class View(object):
         flags = self._driver.get_object_field_value(self.hashcode, 'mViewFlags')
         return int(flags) & CLICKABLE == CLICKABLE
 
-# ifndef __RELEASE__
     @property
     def clickable(self):
         '''是否可点击
         to be deleted
         '''
         return self._clickable
-# endif
 
     @property
     @func_wrap
@@ -593,15 +573,6 @@ class View(object):
         ENABLED_MASK = 0x00000020
         flags = int(self._driver.get_object_field_value(self.hashcode, 'mViewFlags'))
         return flags & ENABLED_MASK == ENABLE
-
-# ifndef __RELEASE__
-    @property
-    def enable(self):
-        '''是否可用
-        to be deleted
-        '''
-        return self.enabled
-# endif
 
     @property
     def content_desc(self):
@@ -634,10 +605,10 @@ class View(object):
     def wait_for_visible(self, timeout=10, interval=0.2):
         '''等待控件可见
         
-        :param timeout: 超时时间，单位：秒
-        :type  timeout: int/float
-        :param interval:重试间隔时间，单位：秒
-        :param interval:int/float
+        :param timeout:  超时时间，单位：秒
+        :type  timeout:  int/float
+        :param interval: 重试间隔时间，单位：秒
+        :type  interval: int/float
         '''
         time0 = time.time()
         while time.time() - time0 < timeout:
@@ -648,10 +619,10 @@ class View(object):
     def wait_for_invisible(self, timeout=10, interval=0.2):
         '''等待控件不可见
         
-        :param timeout: 超时时间，单位：秒
-        :type  timeout: int/float
-        :param interval:重试间隔时间，单位：秒
-        :param interval:int/float
+        :param timeout:  超时时间，单位：秒
+        :type  timeout:  int/float
+        :param interval: 重试间隔时间，单位：秒
+        :type  interval: int/float
         '''
         time0 = time.time()
         while time.time() - time0 < timeout:
@@ -960,7 +931,6 @@ class View(object):
         :param interval: 等待间隔，默认为0.5
         :param regularMatch: 参数 property_name和waited_value是否采用正则表达式的比较。默认为不采用（False）正则，而是采用恒等比较。
         """
-        from testbase.util import Timeout
         Timeout(timeout, interval).waitObjectProperty(self, prop_name, prop_value, regularMatch)
     
     def swipe(self, direct):
@@ -1280,12 +1250,13 @@ class ScrollView(FrameLayout):
     
     def _scroll(self, x, y, count=5, interval=0.04):
         '''横向或纵向滚动
-        :param x: x>0时向左滑动，x = x1 - x2，滚动条向右
+        
+        :param x: x > 0 时向左滑动，x = x1 - x2，滚动条向右
         :type x:  int
-        :param y: y>0时向上滑动，y = y1 - y2，滚动条向下
+        :param y: y > 0 时向上滑动，y = y1 - y2，滚动条向下
         :type y:  int
-        :param count: 分为几次滑动
-        :type count:  int
+        :param    count: 分为几次滑动
+        :type     count:  int
         '''
         if y != 0: y = y * 100 / abs(y) if abs(y) < 100 else y  # 为防止在某个控件内滚动变成点击,设置最小滑动距离为100
         rect = self.rect
@@ -1310,12 +1281,13 @@ class ScrollView(FrameLayout):
         
     def scroll(self, x, y, count=5, interval=0.04):
         '''横向或纵向滚动
-        :param x: x>0时向左滑动，x = x1 - x2，滚动条向右
+        
+        :param x: x > 0 时向左滑动，x = x1 - x2，滚动条向右
         :type x:  int
-        :param y: y>0时向上滑动，y = y1 - y2，滚动条向下
+        :param y: y > 0时向上滑动，y = y1 - y2，滚动条向下
         :type y:  int
-        :param count: 分为几次滑动
-        :type count:  int
+        :param    count: 分为几次滑动
+        :type     count:  int
         '''
         # 为避免在不可滑动区域滑动，每次滑动只在可滑动区域3/4处滑动
         time0 = time.time()
@@ -1685,8 +1657,9 @@ class ListItem(View):
     
     def has(self, key):
         '''是否存在该节点
+        
         :param key: 封装时定义的子节点名
-        :type key:  string
+        :type  key: string
         '''
         from androiddriver.util import ControlExpiredError, logger
         item = self._view.container[key]
@@ -1985,8 +1958,9 @@ class ViewPager(ViewGroup):
     
     def scroll(self, count=1, rect=None):
         '''左右滚动
+        
         :param count: 滑动次数，大于0表示向右滑动，小于0表示向左滑动
-        :type count:
+        :type  count: int
         '''
         if rect == None: rect = self.rect
         x1 = rect[0] + 5

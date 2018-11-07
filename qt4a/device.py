@@ -294,9 +294,9 @@ class Device(object):
         '''以package_name权限执行命令cmd
         
         :param package_name: 包名，必须是已经安装的debug包
-        :type package_name: string
-        :param cmd:命令行
-        :type cmd: string
+        :type  package_name: string
+        :param cmd:          命令行
+        :type  cmd:          string
         '''
         return self.adb.run_as(package_name, cmd, **kwargs)
     
@@ -333,12 +333,12 @@ class Device(object):
     def install_package(self, pkg_path, pkg_name='', overwrite=False):
         '''安装应用
         
-        :param pkg_path: 安装包路径
-        :type pkg_path:  string
-        :param pkg_name: 应用包名
-        :type pkg_name:  string
-        :param overwrite:是否是覆盖安装
-        :type overwrite: bool
+        :param pkg_path:  安装包路径
+        :type  pkg_path:  string
+        :param pkg_name:  应用包名
+        :type  pkg_name:  string
+        :param overwrite: 是否是覆盖安装
+        :type  overwrite: bool
         '''
         return self._device_driver.install_package(pkg_path, overwrite)
     
@@ -536,14 +536,14 @@ class Device(object):
     def record_screen(self, save_path, record_time, frame_rate=10, quality=20):
         '''录屏
         
-        :param save_path:  保存路径，如果为已存在的目录路径，则会将每一帧图片保存到该目录下
-        :type  save_path:  string
-        :param record_time:录制时间，单位：秒
-        :type  record-time:int/float
-        :param frame_rate: 帧率，1-30
-        :type  frame_rate: int
-        :param quality:    压缩质量，10-100
-        :type  quality:    int
+        :param save_path:   保存路径，如果为已存在的目录路径，则会将每一帧图片保存到该目录下
+        :type  save_path:   string
+        :param record_time: 录制时间，单位：秒
+        :type  record-time: int/float
+        :param frame_rate:  帧率，1-30
+        :type  frame_rate:  int
+        :param quality:     压缩质量，10-100
+        :type  quality:     int
         '''
         import shutil
         from androiddriver.device_driver import qt4a_path
@@ -849,10 +849,10 @@ class Device(object):
     def set_default_app(self, action, type, new_app):
         '''设置默认应用
         
-        :param action: 应用针对的类型，如：android.media.action.IMAGE_CAPTURE
-        :type action:  String
-        :param new_app:新的应用包名
-        :type new_app: String
+        :param action:  应用针对的类型，如：android.media.action.IMAGE_CAPTURE
+        :type  action:  String
+        :param new_app: 新的应用包名
+        :type  new_app: String
         '''
         return self._device_driver.set_default_app(action, type, new_app)
     
