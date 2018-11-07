@@ -1,5 +1,9 @@
 # QT4A
 
+[![Build Status](https://travis-ci.org/Tencent/QT4A.svg?branch=master)](https://travis-ci.org/Tencent/QT4A) 
+[![PyPi version](https://img.shields.io/pypi/v/qt4a.svg)](https://pypi.python.org/pypi/qt4a/) 
+[![GitHub tag](https://img.shields.io/github/tag/Tencent/QT4A.svg)](https://GitHub.com/Tencent/QT4A/tags/)
+
 `QT4A (Quick Test for Android) is a QTA test automation driver for Android application.`
 
 ### Features
