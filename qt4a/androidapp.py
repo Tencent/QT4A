@@ -137,10 +137,11 @@ class AndroidApp(object):
 
     def drag(self, direction='right', count=1):
         '''滑动屏幕，适合一大块区域（如引导屏）的滑动，无需关心具体的控件
+        
         :param direction: 方向，right、left、top、bottom
-        :type direction:  string
-        :param count: 次数
-        :type count:  int
+        :type  direction: string
+        :param count:     次数
+        :type  count:     int
         '''
         width, height = self.device.screen_size
         mid_width = width / 2
@@ -179,8 +180,9 @@ class AndroidApp(object):
             
     def send_key(self, key):
         '''发送单个按键
+        
         :param key: 发送的按键字符串
-        :type key:  string
+        :type  key: string
         '''
         self.get_driver().send_key(key)
         
@@ -340,6 +342,7 @@ class AndroidApp(object):
         
     def get_string_resource(self, string_id, lang=''):
         '''获取字符串资源
+        
         :param string_id: 字符串ID
         :type string_id:  string
         :param lang: 字符串语言，默认为当前系统语言
@@ -409,20 +412,20 @@ class AndroidApp(object):
     def send_image(self, activity, image_path):
         '''向Activity发送图片，支持多图
         
-        :param activity:  目标Activity名称
-        :type activity:   string
-        :param image_path:图片在PC上的路径或路径列表
-        :type image_path: string | list
+        :param activity:   目标Activity名称
+        :type  activity:   string
+        :param image_path: 图片在PC上的路径或路径列表
+        :type  image_path: string | list
         '''
         self.device.send_image_to_app('%s/%s' % (self.package_name, activity), image_path)
     
     def send_file(self, activity, file_path):
         '''向Activity发送文件
         
-        :param activity: 目标Activity名称
-        :type activity:  string
-        :param file_path:文件在PC上的路径
-        :type file_path: string
+        :param activity:  目标Activity名称
+        :type  activity:  string
+        :param file_path: 文件在PC上的路径
+        :type  file_path: string
         '''
         self.device.send_file_to_app('%s/%s' % (self.package_name, activity), file_path)
     
