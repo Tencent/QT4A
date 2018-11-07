@@ -46,5 +46,3 @@ QT4A需要和[QTAF](https://github.com/Tencent/QTAF)一起使用，请先参考Q
 ------------------------------
 
 欢迎加入QQ群（432699528）交流使用和反馈
-
-![image](https://github.com/Tencent/QTAF/blob/master/docs/misc/qq_group.png)
