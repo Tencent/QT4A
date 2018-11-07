@@ -113,11 +113,11 @@ def copy_android_driver(device_id_or_adb, force=False, root_path=None, enable_ac
     rooted = adb.is_rooted()
         
     cpu_abi = adb.get_cpu_abi()
-    print '当前系统的CPU架构为：%s' % cpu_abi
+    print('Current CPU arch：%s' % cpu_abi)
     use_pie = False
     if adb.get_sdk_version() >= 21 and cpu_abi != 'arm64-v8a': use_pie = True
         
-    file_list = [os.path.join(cpu_abi, 'droid_inject'), os.path.join(cpu_abi, 'libdexloader.so'), os.path.join(cpu_abi, 'screenshot'), os.path.join(cpu_abi, 'libandroidhook.so'), 'inject', 'AndroidSpy.jar', 'SpyHelper.jar', 'SpyHelper.sh']
+    file_list = [os.path.join(cpu_abi, 'droid_inject'), os.path.join(cpu_abi, 'libdexloader.so'), os.path.join(cpu_abi, 'screenkit'), os.path.join(cpu_abi, 'libandroidhook.so'), 'inject', 'AndroidSpy.jar', 'SpyHelper.jar', 'SpyHelper.sh']
 
     if cpu_abi == 'arm64-v8a':
         file_list.append(os.path.join(cpu_abi, 'droid_inject64'))
@@ -142,7 +142,8 @@ def copy_android_driver(device_id_or_adb, force=False, root_path=None, enable_ac
         
     adb.chmod('%sdroid_inject' % dst_path, 755)
     adb.chmod('%sinject' % dst_path, 755)
-    adb.chmod('%sscreenshot' % dst_path, 755)
+    adb.chmod('%sscreenkit' % dst_path, 755)
+    adb.run_shell_cmd('ln -s %sscreenkit %sscreenshot' % (dst_path, dst_path))
     
     if cpu_abi == 'arm64-v8a': 
         adb.chmod('%sdroid_inject64' % dst_path, 755)
