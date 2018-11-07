@@ -22,10 +22,26 @@
 通过pip安装的方式安装QT4A::
 
    pip install qt4a
+   
+=========
+安装QT4A测试桩
+=========
 
-====
+执行用例前，需先安装QT4A测试桩，可通过QT4A命令执行::
+
+   qt4a-manage install-driver
+
+执行成功如下:
+
+   .. image:: ./img/testcases/install_driver_cmd.png
+   
+同时可以看到文件已拷贝到手机目录中:
+
+   .. image:: ./img/testcases/qt4a_driver_files.png
+
+======
 Demo工程
-====
+======
 
 可于github(`<https://github.com/qtacore/QT4ADemoProj>`_)上下载demo工程，其中包括demo测试项目源码和demo apk，本文的分析基于该demo工程进行。
 
@@ -47,13 +63,15 @@ Demo工程
 手机未root
 -------
 
-如果你的手机未root，请先将你的apk进行重打包(假设你已经按照《:ref:`qt4a_setup`》一节装好了jdk)，再安装重打包后的apk,重打包方法如下::
+如果你的手机未root，请先将你的apk进行重打包(假设你已经按照《:ref:`qt4a_setup`》一节装好了jdk)，再安装重打包后的apk,重打包命令如下::
 
-   from qt4a.apktool.repack import repack_apk
-   apk_path = r'E:\1.apk'
-   print (repack_apk(apk_path))
+   qt4a-manage repack-apk -p D:\1.apk
 
-耐心等待执行完成，会打印出一个重打包后的apk路径，到该路径下拷贝重打包后的apk,安装重打包后的apk即可。
+耐心等待执行完成，会打印出一个重打包后的apk路径:
+
+   .. image:: ./img/testcases/repack_apk_cmd.png
+
+到该路径下拷贝重打包后的apk,安装重打包后的apk即可。命令更多参数可以在命令行中加-h查看。
 
 ----------
 安装release包
