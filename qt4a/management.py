@@ -30,22 +30,22 @@ def install_qt4a_driver(args):
     elif len(device_list) == 1:
         device_id = device_list[0]
     elif len(device_list) > 1:
-        text = 'Current Android device list:\n'
+        text = '\nCurrent Android device list:\n'
         for i, dev in enumerate(device_list):
-            text += '%d. %s\n' % (i, dev)
-        print(text)
+            text += '%d. %s\n' % ((i + 1), dev)
+
         while True:
-            print(device_list)
-            result = raw_input('Please input the index of device which will install driver:')
+            print(text)
+            result = raw_input('Please input the index of device to install driver:\n')
             if result.isdigit():
                 if int(result) > len(device_list):
-                    sys.stderr.write('Index range: [1, %d]' % len(device_list))
+                    sys.stderr.write('\nIndex %s out of range\nValid index range: [1, %d]\n' % (result, len(device_list)))
                     time.sleep(0.1)
                     continue
                 device_id = device_list[int(result) - 1]
             else:
                 if not result in device_list:
-                    sys.stderr.write('Device index error: %r' % result)
+                    sys.stderr.write('\nDevice id %r not exist\n' % result)
                     time.sleep(0.1)
                     continue
                 device_id = result
