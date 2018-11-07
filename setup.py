@@ -90,5 +90,7 @@ if __name__ == "__main__":
         classifiers=[
           "Programming Language :: Python :: 2.7",
           "Operating System :: OS Independent",
-        ]
+        ],
+        url="https://github.com/Tencent/QT4A",
+        project_urls={"QT4A Documentation":"https://qt4a.readthedocs.io/zh_CN/latest/",},
     )
