@@ -15,8 +15,8 @@ deploy:
   skip_cleanup: true
   provider: pypi
   user: qta
-  password:
-    secure: "xqKbB4+LBXIfckB5xx97hDOgpVHfzhe/oDiq4wdgRAtrpZdA7sdd6ykTElMh+K2s4xPL7g9hbTWghtfoxF9HKq2EhXd4qTJXHzdiGzMfMafmfe9Hc5t6xykUP3NwsEV5b5qlVael4HpyQZGvoU2dLhQTTMAMzRCKRjYMOn+1Nv343QBhDGw+iBlzJcyRmbu0OK7ggG7JaC82/LSj37V3ilBbE6rJXHGTput1Hm1msoV9J3MBabyqumcoR77Tw9IJYRGeQT8TdC04knvEeMj3gsj3Xk8TTimCJ2888ADvcSvgqXctkRlc1m8J1sPgsMjdDFCdYAF4ap45lFKAhulH90HFdd7g+pJut+c4y2osFKNqZ9Bsbi4lxfgiBvD7IL7FM29Gqc6r88DecBMpi1v0hAkp1tNqtUkFt+j7zMpa/nOG+jED5WagWiEn1MWHnRclNxKyGuZ5MakU1VZeCi+3/i2NGkOPClJOpJ/Cwmq4JE7i5wcvBgbyJtWBrc59ZmdIth/lYDYBqxC7l8LoLdG/QoWlpP6xz6qCf+935yas4H0mNbGpYnBPvsfMT4YOvM9RtDKSXwCl8PlhHg56iJoVrxioEEZgwuZkKNd0jCBKS8EHvmrN4XX6YAIBCFTkV6ecTMqI42OO5/hFaPEeyhAgxVaknVd4GOKQjyZIv0GcB3E="
   on:
     tags: true
-    condition: $TRAVIS_TAG =~ v[0-9]+\.[0-9]+\.[0-9]+ && $BUILD_SDIST=true
+    condition: "$TRAVIS_TAG =~ v[0-9]+\\.[0-9]+\\.[0-9]+ && $BUILD_SDIST=true"
+  password:
+    secure: 6TREFJ3J3EeQ+3gSqw/yO57UWcSteWIyR8/KqZYQLUztg2Qof94KRoH9h96R+tagpqHPDefTqvIw4MfB7NXt0p3MB5rt4bQknjn+g0RYWoE+kFlLgStoy0shVseds75Od0VaNCOGr/gC2DNDF+JO4x6RK1IT4bx+UvpXrYCZ6K1EOUSl4J8/pQFrMR2oBevPWp/dhwDlZ69vcirXaYx2ZETGRMiea0ESw2vsfezgy9btBTYhhMMuebe60g358orDS6XzTX8vp7B7d75I/FlwkEW/JUGgRMEpGo/cEh1GSCypRjs6Nnx47ZAsCMU3oipI3opNHoLaso3p+NxLRdOoCtDy7xyOojPc3M+33HjD0ysSnombktj3KSo9OzD8KTE+X6TWuVcEHfB8sy8OnP+E04RRZga/ql/LKfIUl/r39UeUgn9bx7Z+WH950g4ZMmykQGFU/WeEuMDcjSzZOCjG7MSm0qXgvSOhipToU3VoCwGdW+sFtrCRLR51klblnFmAZixZAD0se1iUKVaJKsuXxFQptDe1uyNBLY9c7RO5di4v8hrylD65zPr1XOrWUNVFBJ3ExDWJsjocgKO+yFpQIYpE/sCPe3TO64zx51xTbLtDHi9Xwn3+JNp9s0oHs0dMhGgTeJOfCOOFwZmMOQKv/xCSp73IL3wJkYjr/biTZ6M=
