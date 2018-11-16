@@ -1,0 +1,3 @@
+include *.txt
+graft qt4a/androiddriver/tools
+graft qt4a/apktool/tools

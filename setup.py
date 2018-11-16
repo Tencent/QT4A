@@ -17,7 +17,6 @@ import os
 from setuptools import setup, find_packages
   
 BASE_DIR = os.path.realpath(os.path.dirname(__file__))
-DATA_PACKAGES = ["qt4a.androiddriver", "qt4a.apktool"]
   
 def generate_version():
     version = "2.1.0"
@@ -60,27 +59,18 @@ def list_data_files(packages):
             data_files.append(dirname+'/'+package.split('.')[-1])
     return data_files 
 
-def get_data_files():
-    data_file_list = ["requirements.txt"]
-    if os.path.isfile(os.path.join(BASE_DIR, "version.txt")):
-        data_file_list.append("version.txt")
-    return data_file_list
-
 def get_description():
     with open(os.path.join(BASE_DIR, "README.md"), "r") as fh:
         return fh.read()
      
 if __name__ == "__main__":  
     setup(
+        zip_safe=False,
         version=generate_version(),
         name="qt4a",
         cmdclass={},
         packages=find_packages(exclude=("test", "test.*",)),
-        package_data={
-            'qt4a.androiddriver': ['tools/*', 'tools/arm64-v8a/*', 'tools/armeabi-v7a/*', 'tools/armeabi/*', 'tools/x86/*'],
-            'qt4a.apktool': ['tools/*'],
-        },
-        data_files=[(".", get_data_files())], #list_data_files(DATA_PACKAGES),
+        include_package_data=True,
         long_description=get_description(),
         long_description_content_type="text/markdown",
         author="Tencent",
