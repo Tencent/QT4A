@@ -59,7 +59,9 @@ class AndroidApp(object):
         self._monitor_thread = None
         self.start_monitor()
         self.add_monitor_task(self._detect_crash_window)
-
+        if self.device.is_rooted():
+            self.grant_all_runtime_permissions()
+            
     @property
     def device(self):
         '''返回所在的设备

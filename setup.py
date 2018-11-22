@@ -71,6 +71,7 @@ if __name__ == "__main__":
         cmdclass={},
         packages=find_packages(exclude=("test", "test.*",)),
         include_package_data=True,
+        description="QTA driver for Android app",
         long_description=get_description(),
         long_description_content_type="text/markdown",
         author="Tencent",

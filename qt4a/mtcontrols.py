@@ -114,6 +114,24 @@ else:
             '''
             x, y = self._get_position(offset_x, offset_y)
             self._device.run_shell_cmd('input swipe %s %s %s %s %d' % (x, y, x, y, int(duration * 1000)))
+            
+        def drag(self, from_x=0.5, from_y=0.5, to_x=0.5, to_y=0.1, duration=0.5):
+            '''拖拽
+            
+            :param from_x: 起点 x偏移百分比（从左至右为0.0至1.0）
+            :type from_x: float
+            :param from_y: 起点 y偏移百分比（从上至下为0.0至1.0）
+            :type from_y: float
+            :param to_x: 终点 x偏移百分比（从左至右为0.0至1.0）
+            :type to_x: float
+            :param to_y: 终点 y偏移百分比（从上至下为0.0至1.0）
+            :type to_y: float
+            :param duration: 持续时间（秒）
+            :type duration: float
+            '''
+            from_x, from_y = self._get_position(from_x, from_y)
+            to_x, to_y = self._get_position(to_x, to_y)
+            return self._device.drag(from_x, from_y, to_x, to_y, count=5, wait_time=100, send_down_event=True, send_up_event=True)
     
         
 if __name__ == '__main__':
