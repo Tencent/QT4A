@@ -1312,7 +1312,7 @@ class ADB(object):
         run_as_succ = False
         if 'is unknown' in result:
             logger.info('Package %s not installed' % package_name)
-        elif 'is not debuggable' in result:
+        elif 'not debuggable' in result:
             logger.info('Package %s is not debuggable' % package_name)
         elif 'Could not set capabilities: Operation not permitted' in result:
             logger.info('Samsung device has bug with run-as command')
