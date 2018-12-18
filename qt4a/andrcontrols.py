@@ -1700,17 +1700,6 @@ class WebkitWebView(View):
     
     def __init__(self, *args, **kwargs):
         super(WebkitWebView, self).__init__(*args, **kwargs)
-        try:
-            from androiddriver.webdriver import AndroidWebDriver
-            self._webdriver = AndroidWebDriver(self)
-        except ImportError:
-            self._webdriver = None
-    
-    def __getattr__(self, attr):
-        '''转发给WebDriver
-        '''
-        if self._webdriver: return getattr(self._webdriver, attr)
-        return super(WebView, self).__getattr__(attr)
     
     def eval_script(self, frame_xpaths, script):
         '''执行JavaScript
@@ -1721,24 +1710,35 @@ class WebkitWebView(View):
         except ControlExpiredError, e:
             raise e
         except AndroidSpyError, e:
-            if self._webdriver:
+            try:
                 from qt4w.util import JavaScriptError
-                raise JavaScriptError(frame_xpaths, e.args[0])
+            except ImportError:
+                raise
             else:
-                raise e
+                raise JavaScriptError(frame_xpaths, e.args[0])
             
 class WebView(View):
     '''Web页面容器
     '''
+    title = None
+    url = None
+    is_chromium = None
     
     def __init__(self, *args, **kwargs):
-        super(WebView, self).__init__(*args, **kwargs)
-        self._is_chromium = kwargs.get('is_chromium', None)
-        if self._is_chromium == None: self._is_chromium = self.container.device.sdk_version >= 19  # Android 4.4以上使用Chromium内核
-        self._webview_impl = None
         self._args = args
         self._kwargs = kwargs
-        
+        super(WebView, self).__init__(*args, **kwargs)
+        self._is_chromium = self.__class__.is_chromium
+        if self._is_chromium == None: self._is_chromium = self.container.device.sdk_version >= 19  # Android 4.4以上使用Chromium内核
+        self._webview_impl = None
+    
+    @property
+    def webdriver_class(self):
+        '''WebView对应的WebDriver类
+        '''
+        from androiddriver.webdriver import AndroidWebDriver
+        return AndroidWebDriver
+    
     @property
     def webview_impl(self):
         '''
@@ -1748,16 +1748,12 @@ class WebView(View):
                 self._webview_impl = WebkitWebView(*self._args, **self._kwargs)
             else:
                 try:
-                    self._webview_impl = ChromiumWebView(*self._args, **self._kwargs)
+                    self._webview_impl = ChromiumWebView(title=self.__class__.title, url=self.__class__.url, *self._args, **self._kwargs)
                 except ImportError:
                     # Fallback to custom WebView
                     self._webview_impl = WebkitWebView(*self._args, **self._kwargs)
+
         return self._webview_impl
-    
-    def __getattr__(self, attr):
-        '''转发给WebDriver
-        '''
-        return getattr(self.webview_impl, attr)
     
     def eval_script(self, frame_xpaths, script):
         '''在指定frame中执行JavaScript，并返回执行结果（该实现需要处理js基础库未注入情况的处理）
@@ -1847,18 +1843,33 @@ class WebView(View):
 class ChromiumWebView(WebkitWebView):
     '''Chromium内核的WebView
     '''
+    debugger_instances = {}
     
-    def __init__(self, *args, **kwargs):
+    def __init__(self, url=None, title=None, *args, **kwargs):
         import chrome_master
         super(ChromiumWebView, self).__init__(*args, **kwargs)
+        self._is_system_webview = False
+        webview_types = self._driver.get_control_type(self.hashcode)
+        for webview_type in webview_types:
+            if webview_type == 'android.webkit.WebView':
+                self._is_system_webview = True
+                break
+        self._url = url
+        self._title = title
+        
         self._device = self.container.device
         self._pid = self._device.adb.get_pid(self._driver._process_name)
         self._service_name = 'webview_devtools_remote_%d' % self._pid
         chrome_master.set_logger(logger)
         self._chrome_master = chrome_master.ChromeMaster((self._service_name, 80), self.create_socket)
+        if self._pid in self.__class__.debugger_instances and self.__class__.debugger_instances[self._pid]:
+            self.__class__.debugger_instances[self._pid].close()
+            self.__class__.debugger_instances[self._pid] = None
+
         self._page_debugger = self.get_debugger()
         self._page_debugger.register_handler(chrome_master.RuntimeHandler)
-            
+        self.__class__.debugger_instances[self._pid] = self._page_debugger
+    
     def create_socket(self):
         '''创建socket对象
         '''
@@ -1873,6 +1884,7 @@ class ChromiumWebView(WebkitWebView):
     def get_page_url(self):
         '''获取当前WebView页面的url
         '''
+        if not self._is_system_webview: return self._url
         timeout = 10
         time0 = time.time()
         while time.time() - time0 < timeout:
@@ -1890,7 +1902,7 @@ class ChromiumWebView(WebkitWebView):
         '''获取当前页面的RemoteDebugger实例
         '''
         url = self.get_page_url()
-        return self._chrome_master.find_page(url=url, last=True)  # 获取最后一个页面
+        return self._chrome_master.find_page(url=url, title=self._title)  # 获取最后一个页面
     
     def convert_frame_tree(self, frame_tree, parent=None):
         '''将frame tree转化为Frame对象
@@ -1923,7 +1935,7 @@ class ChromiumWebView(WebkitWebView):
             raise ControlNotFoundError('Find frame %s timeout' % ''.join(frame_xpaths))
         
     def eval_script(self, frame_xpaths, script):
-        '''在指定frame中执行JavaScript，并返回执行结果（该实现需要处理js基础库未注入情况的处理）
+        '''在指定frame中执行JavaScript，并返回执行结果
         
         :param frame_xpaths: frame元素的XPATH路径，如果是顶层页面，怎传入“[]”
         :type frame_xpaths:  list
