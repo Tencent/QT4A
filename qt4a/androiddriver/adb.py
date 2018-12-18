@@ -133,7 +133,9 @@ class LocalADBBackend(IADBBackend):
         device_list = []
         for device in result:
             if len(device) <= 1 or not '\t' in device: continue
-            device_list.append(device.split('\t')[0])
+            device_name, status = device.split('\t')
+            if status != 'device': continue
+            device_list.append(device_name)
         return device_list
 
     @staticmethod
