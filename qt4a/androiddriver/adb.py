@@ -216,7 +216,8 @@ class ADB(object):
         self._log_filter_thread_list = []  # 不打印log的线程id列表
         self._shell_prefix = None  # 有些设备上会有固定输出
         self._logcat_callbacks = []
-
+        self._newline = None  # 不同手机使用的换行会不同
+        
     @property
     def device_host(self):
         '''设备主机名
@@ -282,8 +283,18 @@ class ADB(object):
         :param cmd_line: 要运行的命令行
         :param root: 是否使用root权限
         '''
+        if not self._newline:
+            result = self.run_adb_cmd('shell', 'echo "1\n2"')
+            if '\r\n' in result:
+                self._newline = '\r\n'
+            else:
+                self._newline = '\n'
+                
         def _handle_result(result):
             if not isinstance(result, (str, unicode)): return result
+            if self._newline != '\n':
+                result = result.replace(self._newline, '\n')
+                
             if self._shell_prefix != None and self._shell_prefix > 0:
                 result = '\n'.join(result.split('\n')[self._shell_prefix:])
             if result.startswith('WARNING: linker:'):
@@ -294,14 +305,8 @@ class ADB(object):
                     if not lines[idx].startswith('WARNING: linker:'): break
                     idx += 1
                 return '\n'.join(lines[idx:]).strip()
-            elif root and result.startswith('Test prop'):
-                lines = result.split('\n')
-                return '\n'.join(lines[2:]).strip()
             else:
-                if root and 'connect ui: Timer expired' in result:
-                    # su程序出现问题 TODO: 是否重试能够解决问题？
-                    return self.run_shell_cmd(cmd_line, root, **kwds)
-                return result.replace('\r\n', '\n')
+                return result
 
         if root:
             need_su = True

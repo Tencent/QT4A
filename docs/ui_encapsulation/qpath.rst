@@ -24,7 +24,7 @@ App中每个窗口包含多个控件元素，要对各个元素进行操作，�
 QT4A支持的QPath属性
 ==============
 
-QT4A目前支持的QPath关键字有Id、Text、Instance、MaxDepth、Visible、Type。同时支持全匹配(=)和正则匹配(~=)。以下通过控件树探测工具抓取窗口控件树来一一说明用法。
+QT4A目前支持的QPath关键字有Id、Text、Instance、MaxDepth、Visible、Type。同时支持全匹配(=)和正则匹配(~=)。以下通过AndroidUiSpy控件树探测工具抓取窗口控件树来一一说明用法,可从github下载 `AndroidUiSpy工具 <https://github.com/qtacore/AndroidUISpy/releases/>`_ ，并参考 `AndroidUiSpy使用文档 <https://github.com/qtacore/AndroidUISpy/blob/master/usage.md>`_ 。
 
 ----
 Id属性
