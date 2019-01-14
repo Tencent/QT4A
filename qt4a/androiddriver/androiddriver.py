@@ -549,7 +549,7 @@ class AndroidDriver(object):
             err_msg = e.args[0]
             if isinstance(err_msg, unicode):
                 err_msg = err_msg.encode('utf8')
-            if err_msg.find('java.lang.RuntimeException: 找到重复控件') >= 0:
+            if '找到重复控件' in err_msg or 'Multiple controls found' in err_msg:
                 try:
                     print >> sys.stderr, e.args[0]
                 except:
@@ -569,7 +569,7 @@ class AndroidDriver(object):
                         repeat_list.append(line[pos + 1 : pos2])
                     err_msg = 'RepeatList:%s' % json.dumps(repeat_list)
                     raise RuntimeError(err_msg)
-            elif '查找控件失败' in err_msg:
+            elif '查找控件失败' in err_msg or 'Control not found' in err_msg:
                 if get_position and ':' in err_msg:
                     _, pos = err_msg.split(':')
                     return int(pos)
@@ -781,20 +781,23 @@ class AndroidDriver(object):
             y2 = m - d
         for _ in range(3):
             try:
-                return self.send_command(EnumCommand.CmdDrag, X1=x1, Y1=y1, X2=x2, Y2=y2,
+                result = self.send_command(EnumCommand.CmdDrag, X1=x1, Y1=y1, X2=x2, Y2=y2,
                                          StepCount=count,
                                          SleepTime=wait_time,
                                          SendDownEvent=send_down_event,
                                          SendUpEvent=send_up_event)
             except AndroidSpyError, e:
                 if str(e).find('java.lang.SecurityException') >= 0:
-                    logger.info('java.lang.SecurityException,current activity:%s' % self.get_current_activity())  # 检测是否有弹窗
+                    logger.info('java.lang.SecurityException,current activity:%s' % self._device_driver.get_current_activity())  # 检测是否有弹窗
                     # 有时操作过快会出现该问题
                     time.sleep(0.1)
                 else:
                     raise e
+            else:
+                return result['Result']
         logger.error('drag (%s, %s, %s, %s) failed' % (x1, y1, x2, y2))
-
+        return False
+        
     def enable_soft_input(self, control, enable=False):
         '''启用/禁止软键盘
         '''
@@ -822,13 +825,13 @@ class AndroidDriver(object):
         return result['Result']
     
     def get_static_field_value(self, class_name, field_name):
-        '''
+        '''获取类`class_name`中静态字段`field_name`的值
         '''
         result = self.send_command(EnumCommand.CmdGetStaticFieldValue, ClassName=class_name, FieldName=field_name)
         return result['Result']
     
     def get_object_field_value(self, control, field_name):
-        '''
+        '''获取对象中字段`field_name`的值
         '''
         result = self.send_command(EnumCommand.CmdGetObjectFieldValue, Control=control, FieldName=field_name)
         return result['Result']
