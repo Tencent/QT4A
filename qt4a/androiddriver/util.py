@@ -2,17 +2,16 @@
 #
 # Tencent is pleased to support the open source community by making QTA available.
 # Copyright (C) 2016THL A29 Limited, a Tencent company. All rights reserved.
-# Licensed under the BSD 3-Clause License (the "License"); you may not use this 
+# Licensed under the BSD 3-Clause License (the "License"); you may not use this
 # file except in compliance with the License. You may obtain a copy of the License at
-# 
+#
 # https://opensource.org/licenses/BSD-3-Clause
-# 
-# Unless required by applicable law or agreed to in writing, software distributed 
+#
+# Unless required by applicable law or agreed to in writing, software distributed
 # under the License is distributed on an "AS IS" basis, WITHOUT WARRANTIES OR CONDITIONS
 # OF ANY KIND, either express or implied. See the License for the specific language
 # governing permissions and limitations under the License.
 #
-
 '''
 通用功能模块
 '''
@@ -27,9 +26,10 @@ import time
 class Deprecated(object):
     '''废弃函数包装
     '''
+
     def __init__(self, new_func):
         self._new_func = new_func
-    
+
     def __call__(self, func):
         def warp_func(*args, **kwargs):
             frame = sys._getframe(1)
@@ -37,58 +37,69 @@ class Deprecated(object):
             file_name = os.path.split(code.co_filename)[-1]
             print >> sys.stderr, 'method %s is deprecated, called in [%s:%s], pls use %s instead' % (func.__name__, file_name, code.co_name, self._new_func)
             return func(*args, **kwargs)
+
         return warp_func
-    
+
+
 class TimeoutError(RuntimeError):
     '''超时错误
     '''
     pass
 
-class SocketError(RuntimeError): 
+
+class SocketError(RuntimeError):
     '''Socket连接错误
     '''
     pass
 
+
 class AndroidSpyError(RuntimeError):
     '''测试桩返回错误
-    ''' 
+    '''
     pass
+
 
 class ProcessExitError(RuntimeError):
     '''进程退出错误
     '''
     pass
 
+
 class ControlExpiredError(AndroidSpyError):
     '''控件失效错误
     '''
     pass
+
 
 class InstallPackageFailedError(RuntimeError):
     '''应用安装失败错误
     '''
     pass
 
+
 class PackageError(RuntimeError):
     '''安装包错误
     '''
     pass
+
 
 class PermissionError(RuntimeError):
     '''权限错误
     '''
     pass
 
+
 class OutStream(object):
     '''重载输出流，以便在cmd中显示中文
     '''
+
     def __init__(self, stdout):
         self._stdout = stdout
-    
+
     @property
     def encoding(self):
         return 'utf8'
-    
+
     def write(self, s):
         if not isinstance(s, unicode):
             try:
@@ -105,10 +116,11 @@ class OutStream(object):
             return ret
         except UnicodeEncodeError:
             pass
- 
+
     def flush(self):
         return self._stdout.flush()
-    
+
+
 def mkdir(dir_path):
     '''创建目录
     '''
@@ -121,15 +133,13 @@ def mkdir(dir_path):
             return
         raise e
 
+
 def gen_log_path():
     '''生成log存放路径
+        优先使用环境变量[LOG_PATH_PREFIX], 若不存在则使用[APPDATA] / [HOME]
     '''
-    dir_root = ''
-    if sys.platform == 'win32':
-        dir_root = os.environ['APPDATA']
-    else:
-        dir_root = os.environ['HOME']
-        
+    dir_root = os.environ.get('LOG_PATH_PREFIX', os.environ['APPDATA' if sys.platform == 'win32' else 'HOME'])
+
     dir_root = os.path.join(dir_root, 'qt4a')
     mkdir(dir_root)
     from datetime import datetime, date
@@ -138,6 +148,7 @@ def gen_log_path():
     dt = datetime.now()
     log_name = '%s_%d.log' % (dt.strftime('%H-%M-%S'), threading.current_thread().ident)
     return os.path.join(dir_root, log_name)
+
 
 logger = logging.getLogger('qt4a')
 logger.setLevel(logging.DEBUG)
@@ -165,15 +176,18 @@ def clear_logger_file():
         except:
             pass
 
+
 def get_default_encoding():
     import locale
     import codecs
     return codecs.lookup(locale.getpreferredencoding()).name
 
+
 def set_default_encoding(code='utf8'):
     if sys.getdefaultencoding() == code: return
     reload(sys)
     sys.setdefaultencoding(code)
+
 
 def get_file_md5(file_path):
     '''计算文件md5
@@ -185,31 +199,35 @@ def get_file_md5(file_path):
         raise RuntimeError('文件：%s 不存在' % file_path)
     with open(file_path, 'rb') as f:
         content = f.read()
-        md5 = hashlib.md5()   
-        md5.update(content)   
-        return md5.hexdigest() 
+        md5 = hashlib.md5()
+        md5.update(content)
+        return md5.hexdigest()
+
 
 class static_property(property):
     '''静态属性
     '''
+
     def __init__(self, *args, **kwargs):
         super(static_property, self).__init__(*args, **kwargs)
         self._value_dict = {}
-        
+
     def __get__(self, obj, cls):
         if not id(obj) in self._value_dict:
             self._value_dict[id(obj)] = super(static_property, self).__get__(obj, cls)
         return self._value_dict[id(obj)]
-    
+
+
 class AndroidPackage(object):
     '''APK文件处理类
     '''
+
     def __init__(self, package_path):
         self._package_path = package_path
         if not os.path.exists(package_path):
             raise RuntimeError('安装包: %s 不存在' % package_path)
         self._file = None
-    
+
     def _get_file(self):
         if not self._file:
             import zipfile, StringIO
@@ -217,7 +235,7 @@ class AndroidPackage(object):
                 apk_data = f.read()
                 self._file = zipfile.ZipFile(StringIO.StringIO(apk_data), mode='r')
         return self._file
-    
+
     def _get_manifest_xml(self):
         from _axmlparser import AXMLPrinter
         f = self._get_file()
@@ -225,28 +243,28 @@ class AndroidPackage(object):
             if i == "AndroidManifest.xml":
                 return AXMLPrinter(f.read(i)).get_xml_obj()
         raise PackageError('找不到AndroidManifest.xml文件')
-    
+
     @property
     def package_name(self):
         '''包名
         '''
         manifest = self._get_manifest_xml()
         return manifest.getElementsByTagName('manifest')[0].getAttribute('package')
-    
+
     @property
     def application_name(self):
         '''应用名
         '''
         manifest = self._get_manifest_xml()
         return manifest.getElementsByTagName('application')[0].getAttribute('android:label')
-    
+
     @property
     def version(self):
         '''应用版本
         '''
         manifest = self._get_manifest_xml()
         return manifest.getElementsByTagName('manifest')[0].getAttribute('android:versionName')
-    
+
     @property
     def start_activity(self):
         '''启动Activity
@@ -261,17 +279,18 @@ class AndroidPackage(object):
                 if filter.getAttribute('android:name') == 'android.intent.action.MAIN':
                     return activity.getAttribute('android:targetActivity')
         raise PackageError('未找到启动Activity')
-    
+
     @property
     def permissions(self):
         '''应用申请的权限
-        ''' 
+        '''
         result = []
-        manifest = self._get_manifest_xml()  
+        manifest = self._get_manifest_xml()
         for item in manifest.getElementsByTagName('uses-permission'):
             result.append(item.getAttribute('android:name'))
         return result
-    
+
+
 class KeyCode(object):
     '''按键对应关系
     '''
@@ -282,7 +301,7 @@ class KeyCode(object):
     KEYCODE_CALL = 5
     KEYCODE_ENDCALL = 6
     KEYCODE_0 = 7
-    
+
     KEYCODE_DPAD_UP = 19
     KEYCODE_DPAD_DOWN = 20
     KEYCODE_DPAD_LEFT = 21
@@ -294,7 +313,7 @@ class KeyCode(object):
     KEYCODE_CAMERA = 27
     KEYCODE_CLEAR = 28
     KEYCODE_A = 29
-    
+
     KEYCODE_COMMA = 55
     KEYCODE_PERIOD = 56
     KEYCODE_ALT_LEFT = 57
@@ -325,76 +344,78 @@ class KeyCode(object):
 
     KEYCODE_PAGE_UP = 92
     KEYCODE_PAGE_DOWN = 93
-    
+
     KEYCODE_ESCAPE = 111
     KEYCODE_FORWARD_DEL = 112
     KEYCODE_CTRL_LEFT = 113
     KEYCODE_CTRL_RIGHT = 114
-    
+
     KEYCODE_MOVE_HOME = 122
     KEYCODE_MOVE_END = 123
-    
+
     KEYCODE_ZOOM_IN = 168
     KEYCODE_ZOOM_OUT = 169
-    
+
     KEYCODE_LANGUAGE_SWITCH = 204
-    
+
     KEYCODE_SLEEP = 223
     KEYCODE_WAKEUP = 224
-    
-    keys_map = {'{LEFT}': KEYCODE_SOFT_LEFT,
-                '{RIGHT}': KEYCODE_SOFT_RIGHT,
-                '{HOME}': KEYCODE_HOME,
-                '{BACK}': KEYCODE_BACK,
-                '{MENU}': KEYCODE_MENU,
-                '{VOLUME_UP}': KEYCODE_VOLUME_UP,
-                '{VOLUME_DOWN}': KEYCODE_VOLUME_DOWN,
-                '{ENTER}': KEYCODE_ENTER,
-                '{BACKSPACE}': KEYCODE_DEL,
-                '{LEFT}': KEYCODE_DPAD_LEFT,
-                '{RIGHT}': KEYCODE_DPAD_RIGHT,
-                '{UP}': KEYCODE_DPAD_UP,
-                '{DOWN}': KEYCODE_DPAD_DOWN,
-                '{DEL}': KEYCODE_FORWARD_DEL,
-                '{DELETE}': KEYCODE_FORWARD_DEL,
-                '{POWER}': KEYCODE_POWER,
-                '{ESC}': KEYCODE_ESCAPE,
-                '`': KEYCODE_GRAVE,
-                '-': KEYCODE_MINUS,
-                '=': KEYCODE_EQUALS,
-                '[': KEYCODE_LEFT_BRACKET,
-                ']': KEYCODE_RIGHT_BRACKET,
-                '\\': KEYCODE_BACKSLASH,
-                ';': KEYCODE_SEMICOLON,
-                '\'': KEYCODE_APOSTROPHE,
-                '/': KEYCODE_SLASH,
-                '@': KEYCODE_AT,
-                '+': KEYCODE_PLUS,
-                ' ': KEYCODE_SPACE,
-                '\t': KEYCODE_TAB,
-                ',': KEYCODE_COMMA,
-                '.': KEYCODE_PERIOD
-                }
-    
-    shift_chars = {'~': '`',
-                   '!': '1',
-                   '#': '3',
-                   '$': '4',
-                   '%': '5',
-                   '^': '6',
-                   '&': '7',
-                   '*': '8',
-                   '(': '9',
-                   ')': '0',
-                   '_': '-',
-                   '=': '+',
-                   ':': ';',
-                   '"': "'",
-                   '<': ',',
-                   '>': '.',
-                   '?': '/'
-                   }
-    
+
+    keys_map = {
+        '{LEFT}': KEYCODE_SOFT_LEFT,
+        '{RIGHT}': KEYCODE_SOFT_RIGHT,
+        '{HOME}': KEYCODE_HOME,
+        '{BACK}': KEYCODE_BACK,
+        '{MENU}': KEYCODE_MENU,
+        '{VOLUME_UP}': KEYCODE_VOLUME_UP,
+        '{VOLUME_DOWN}': KEYCODE_VOLUME_DOWN,
+        '{ENTER}': KEYCODE_ENTER,
+        '{BACKSPACE}': KEYCODE_DEL,
+        '{LEFT}': KEYCODE_DPAD_LEFT,
+        '{RIGHT}': KEYCODE_DPAD_RIGHT,
+        '{UP}': KEYCODE_DPAD_UP,
+        '{DOWN}': KEYCODE_DPAD_DOWN,
+        '{DEL}': KEYCODE_FORWARD_DEL,
+        '{DELETE}': KEYCODE_FORWARD_DEL,
+        '{POWER}': KEYCODE_POWER,
+        '{ESC}': KEYCODE_ESCAPE,
+        '`': KEYCODE_GRAVE,
+        '-': KEYCODE_MINUS,
+        '=': KEYCODE_EQUALS,
+        '[': KEYCODE_LEFT_BRACKET,
+        ']': KEYCODE_RIGHT_BRACKET,
+        '\\': KEYCODE_BACKSLASH,
+        ';': KEYCODE_SEMICOLON,
+        '\'': KEYCODE_APOSTROPHE,
+        '/': KEYCODE_SLASH,
+        '@': KEYCODE_AT,
+        '+': KEYCODE_PLUS,
+        ' ': KEYCODE_SPACE,
+        '\t': KEYCODE_TAB,
+        ',': KEYCODE_COMMA,
+        '.': KEYCODE_PERIOD
+    }
+
+    shift_chars = {
+        '~': '`',
+        '!': '1',
+        '#': '3',
+        '$': '4',
+        '%': '5',
+        '^': '6',
+        '&': '7',
+        '*': '8',
+        '(': '9',
+        ')': '0',
+        '_': '-',
+        '=': '+',
+        ':': ';',
+        '"': "'",
+        '<': ',',
+        '>': '.',
+        '?': '/'
+    }
+
     @staticmethod
     def get_key_list(text):
         '''将字符串转换为按键列表
@@ -418,7 +439,7 @@ class KeyCode(object):
                 if end < 0:
                     raise RuntimeError('按键错误：%s' % text)
                 key = text[i:end + 1]
-                if not KeyCode.keys_map.has_key(key):
+                if key not in KeyCode.keys_map:
                     raise RuntimeError('按键错误：%s' % key)
                 result.append(KeyCode.keys_map[key])
                 i = end
@@ -434,6 +455,7 @@ class KeyCode(object):
             i += 1
         return result
 
+
 class EnumThreadPriority(object):
     '''线程优先级
     '''
@@ -447,13 +469,14 @@ class EnumThreadPriority(object):
     URGENT_DISPLAY = 'THREAD_PRIORITY_URGENT_DISPLAY'  # = -8
     AUDIO = 'THREAD_PRIORITY_AUDIO'  # = -16
     URGENT_AUDIO = 'THREAD_PRIORITY_URGENT_AUDIO'  # = -19
-    
+
+
 class ClassMethod(object):
     def __init__(self, method):
         self._method = method
 
     def __get__(self, instance, owner):
-        if instance == None:
+        if instance is None:
             self._cls = owner
         else:
             # 使用实例传入
@@ -464,22 +487,25 @@ class ClassMethod(object):
         # print self._method.__name__
         return self._method(self._cls, *args, **kws)
 
+
 class Mutex(object):
     def __init__(self, lock):
         self._lock = lock
-        
+
     def __enter__(self):
         time_start = time.time()
         self._lock.acquire()
         time_delta = time.time() - time_start
         if time_delta >= 0.1: logger.debug('thread %d wait %sS' % (threading.current_thread().ident, time_delta))
-        
+
     def __exit__(self, type, value, traceback):
         self._lock.release()
+
 
 class ThreadEx(threading.Thread):
     '''可以捕获异常的线程类
     '''
+
     def run(self):
         '''重载run方法
         '''
@@ -499,6 +525,7 @@ class ThreadEx(threading.Thread):
             # sys.excepthook(*sys.exc_info())
             logger.exception('thread %s exit' % self.getName())
 
+
 class Singleton(object):
     '''单例基类
     '''
@@ -509,6 +536,7 @@ class Singleton(object):
             cls.instance = super(Singleton, cls).__new__(cls, *args, **kwargs)
         return cls.instance
 
+
 def get_root_path():
     '''获取根目录，支持py2exe打包后
     '''
@@ -516,6 +544,7 @@ def get_root_path():
         # py2exe打包的
         return os.path.join(os.path.dirname(unicode(sys.executable, sys.getfilesystemencoding())), 'library.zip')
     return os.path.dirname(unicode(eval('__file__'), sys.getfilesystemencoding()))
+
 
 def is_mutibyte_string(data):
     '''判断是否是多字节字符串
@@ -526,17 +555,18 @@ def is_mutibyte_string(data):
         if ord(c) > 256: return True
     return False
 
+
 def get_string_hashcode(s):
     '''计算java中String的hashcode值
-     * Returns a hash code for this string. The hash code for a 
-     * <code>String</code> object is computed as 
-     * <blockquote><pre> 
-     * s[0]*31^(n-1) + s[1]*31^(n-2) + ... + s[n-1] 
-     * </pre></blockquote> 
-     * using <code>int</code> arithmetic, where <code>s[i]</code> is the 
-     * <i>i</i>th character of the string, <code>n</code> is the length of 
-     * the string, and <code>^</code> indicates exponentiation. 
-     * (The hash value of the empty string is zero.) 
+     * Returns a hash code for this string. The hash code for a
+     * <code>String</code> object is computed as
+     * <blockquote><pre>
+     * s[0]*31^(n-1) + s[1]*31^(n-2) + ... + s[n-1]
+     * </pre></blockquote>
+     * using <code>int</code> arithmetic, where <code>s[i]</code> is the
+     * <i>i</i>th character of the string, <code>n</code> is the length of
+     * the string, and <code>^</code> indicates exponentiation.
+     * (The hash value of the empty string is zero.)
     '''
     if not isinstance(s, unicode):
         s = s.decode('utf8')
@@ -549,6 +579,7 @@ def get_string_hashcode(s):
             ret -= max_val * 2
     return ret
 
+
 def get_intersection(rect1, rect2):
     '''计算两个区域的交集
     '''
@@ -557,6 +588,7 @@ def get_intersection(rect1, rect2):
     top = max(rect1[1], rect2[1])
     bottom = min(rect1[1] + rect1[3], rect2[1] + rect2[3])
     return (left, top, right - left, bottom - top)
+
 
 def get_process_name_hash(process_name, device_id):
     '''根据进程名和设备id计算端口值
@@ -576,6 +608,7 @@ def get_process_name_hash(process_name, device_id):
         result %= port_range
     return result + start_port
 
+
 def version_cmp(ver1, ver2):
     '''版本比较
     '''
@@ -585,8 +618,8 @@ def version_cmp(ver1, ver2):
     i = 0
     while True:
         if i >= len(ver1) and i >= len(ver2): return 0
-        if i >= len(ver1) and i < len(ver2):  return -1
-        if i >= len(ver2) and i < len(ver1):  return 1
+        if i >= len(ver1) and i < len(ver2): return -1
+        if i >= len(ver2) and i < len(ver1): return 1
         if ver1[i].isdigit() and ver2[i].isdigit():
             c1 = int(ver1[i])
             c2 = int(ver2[i])
@@ -600,6 +633,7 @@ def version_cmp(ver1, ver2):
             return 0
         i += 1
 
+
 def list_zipfile_dir(zipfile_path, dir_path):
     '''获取zip文件中指定目录的子目录和文件列表
     '''
@@ -610,7 +644,8 @@ def list_zipfile_dir(zipfile_path, dir_path):
             if it.startswith('%s/' % dir_path):
                 result.append(it[len(dir_path) + 1:])
         return result
-    
+
+
 def extract_from_zipfile(zipfile_path, relative_path, save_path):
     '''从zip文件中提取文件
     '''
@@ -630,6 +665,7 @@ def extract_from_zipfile(zipfile_path, relative_path, save_path):
             with open(save_path, 'wb') as f:
                 f.write(content)
 
+
 def time_clock():
     '''
     '''
@@ -637,6 +673,7 @@ def time_clock():
         return time.clock()
     else:
         return time.time()
+
 
 if __name__ == '__main__':
     pass

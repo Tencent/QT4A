@@ -369,10 +369,18 @@ class ResStringPoolChunk(ResStringPoolHeader):
         '''
         start_offset = self._fp.tell()
         for string_offset in self.string_offset_list:
+            if string_offset != self._fp.tell() - start_offset:
+                index = self.string_offset_list.index(string_offset)
+                if index >= 0:
+                    self.string_list.append(self.string_list[index])
+                    continue
+ 
+                raise APKError('Invalid string offset: %d' % string_offset)
+
             assert(string_offset == (self._fp.tell() - start_offset))
             if not self._utf8_flag:
                 str_len = struct.unpack('<H', self._fp.read(2))[0]
-                if not self._utf8_flag: str_len *= 2  # unicode
+                str_len *= 2  # unicode
             else:
                 str_len = struct.unpack('<BB', self._fp.read(2))[0]
             
@@ -425,11 +433,6 @@ class ResStringPoolChunk(ResStringPoolHeader):
             else:
                 total_size += len(s) + 3
         assert(self.size % 4 == 0)
-
-        if not self._utf8_flag:
-            assert(self.size == total_size or self.size == total_size + 2)
-        else:
-            assert(self.size == total_size + 3)
         
     def serialize(self):
         '''序列化
