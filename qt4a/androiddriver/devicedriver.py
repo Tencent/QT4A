@@ -596,8 +596,9 @@ class DeviceDriver(object):
     def _unlock_keyguard_ge_16(self):
         '''4.1以上使用APP方式解锁
         '''
-        self.start_activity('com.test.androidspy/.activity.UnlockKeyguardActivity', wait=False)
+        self.adb.start_activity('com.test.androidspy/.activity.UnlockKeyguardActivity', wait=False)
         time.sleep(1)
+        return True
         
     def unlock_keyguard(self):
         '''解锁屏幕
