@@ -20,6 +20,7 @@ import re
 import time
 from androidapp import AndroidApp
 from andrcontrols import Window, TextView, WebView
+from qt4a.device import Device
 from qpath import QPath
 from qt4w.browser import IBrowser
 from qt4w.webcontrols import WebPage
@@ -30,8 +31,16 @@ class QT4ABrowser(AndroidApp, IBrowser):
     package_name = 'com.test.androidspy'
     process_name = package_name + ':browser'
     
-    def __init__(self):
-        super(QT4ABrowser, self).__init__(self.process_name)
+    def __init__(self, device=None):
+        if not device:
+            from testbase import context
+            tc = context.current_testcase()
+            if tc:
+                device = tc.acquire_device()
+            else:
+                # 使用本地设备
+                device = Device()
+        super(QT4ABrowser, self).__init__(self.process_name, device)
         
     def open_url(self, url, page_cls=None):
         '''打开一个url，返回page_cls类的实例
