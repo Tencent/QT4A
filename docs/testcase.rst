@@ -1,5 +1,8 @@
 .. include:: links/link.ref
 
+.. _qt4a_testcase:
+
+
 快速入门
 ====
 
@@ -43,7 +46,7 @@
 Demo工程
 ======
 
-可于github(`<https://github.com/qtacore/QT4ADemoProj>`_)上下载demo工程，其中包括demo测试项目源码和demo apk，本文的分析基于该demo工程进行。
+你可从github下载 `Demo工程 <https://github.com/qtacore/QT4ADemoProj>`_，其中包括demo测试项目源码和demo apk，本文的分析基于该demo工程进行。
 
 =======
 安装被测App

@@ -22,7 +22,7 @@ QT4A should be used with [QTAF](https://github.com/Tencent/QTAF), please check i
 * [Demo Project](https://github.com/qtacore/QT4ADemoProj)
 * [Usage Document](https://qt4a.readthedocs.io/zh_CN/latest/index.html)
 * [Design Document](https://github.com/Tencent/QT4A/blob/master/design.md)
-* [AndroidUISpy Tool](https://github.com/qtacore/AndroidUISpy/blob/master/usage.md)
+* [AndroidUISpy Tool] (https://github.com/qtacore/AndroidUISpy/blob/master/usage.md)
 
 ------------------------------
 
@@ -44,7 +44,7 @@ QT4A需要和[QTAF](https://github.com/Tencent/QTAF)一起使用，请先参考Q
 * [Demo项目代码](https://github.com/qtacore/QT4ADemoProj)
 * [使用文档](https://qt4a.readthedocs.io/zh_CN/latest/index.html)
 * [设计文档](https://github.com/Tencent/QT4A/blob/master/design.md)
-* [AndroidUISpy工具](https://github.com/qtacore/AndroidUISpy/blob/master/usage.md)
+* [AndroidUISpy工具] (https://github.com/qtacore/AndroidUISpy/blob/master/usage.md)
 
 ------------------------------
 

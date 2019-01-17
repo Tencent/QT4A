@@ -20,6 +20,7 @@ QT4A，即Quick Test for Android，基于QTA提供的面向Android应用的UI测
    ui_encapsulation
    file_operation
    dev_operation
+   web_test
    advanced_feature
    settings
    qa

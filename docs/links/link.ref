@@ -13,3 +13,12 @@
 
 .. _qtaf-qpath: https://qta-tuia.readthedocs.io/zh/latest/qpath.html
 .. |qtaf-qpath| replace:: QPath语法和使用
+
+.. _qtaf-run: https://qta-testbase.readthedocs.io/zh/latest/testcase.html#id3
+.. |qtaf-run| replace:: 调试执行
+
+.. _QT4W: https://qt4w.readthedocs.io/zh_CN/latest/index.html
+.. |QT4W| replace:: QT4W
+
+.. _qt4w_webcontrol: https://qt4w.readthedocs.io/zh_CN/latest/usage/WebElement.html
+.. |qt4w_webcontrol| replace:: Web控件标识
