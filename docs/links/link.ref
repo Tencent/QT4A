@@ -20,5 +20,5 @@
 .. _QT4W: https://qt4w.readthedocs.io/zh_CN/latest/index.html
 .. |QT4W| replace:: QT4W
 
-.. _qt4w_webcontrol: https://qt4w.readthedocs.io/zh_CN/latest/usage/WebElement.html
-.. |qt4w_webcontrol| replace:: Web控件标识
+.. _qt4w_webcontrol: https://qt4w.readthedocs.io/zh_CN/latest/usage.html
+.. |qt4w_webcontrol| replace:: Web控件的标识与使用
