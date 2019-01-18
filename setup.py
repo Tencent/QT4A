@@ -19,7 +19,7 @@ from setuptools import setup, find_packages
 BASE_DIR = os.path.realpath(os.path.dirname(__file__))
   
 def generate_version():
-    version = "2.1.0"
+    version = "2.2.0"
     if os.path.isfile(os.path.join(BASE_DIR, "version.txt")):
         with open("version.txt", "r") as fd:
             content = fd.read().strip()
@@ -60,8 +60,8 @@ def list_data_files(packages):
     return data_files 
 
 def get_description():
-    with open(os.path.join(BASE_DIR, "README.md"), "r") as fh:
-        return fh.read()
+    with open(os.path.join(BASE_DIR, "README.md"), "rb") as fh:
+        return fh.read().decode('utf8')
      
 if __name__ == "__main__":  
     setup(
