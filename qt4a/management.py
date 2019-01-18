@@ -16,9 +16,12 @@
 '''管理命令
 '''
 
+from __future__ import print_function
+
 import argparse
-import time
+import os
 import sys
+import time
     
 def install_qt4a_driver(args):
     from qt4a.androiddriver.adb import ADB
@@ -82,7 +85,12 @@ def qt4a_manage_main():
     repack_parser.set_defaults(func=repack_apk)
     
     args = parser.parse_args()
-    args.func(args)
+
+    if hasattr(args, 'func'): 
+        args.func(args)
+    else:
+        parser.print_help()
+        print('\n%s: error: too few arguments' % os.path.split(sys.argv[0])[-1], file=sys.stderr) # show error info in python3
         
         
 if __name__ == '__main__':
