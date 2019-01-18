@@ -150,7 +150,7 @@ class Device(object):
     def __init__(self, id_or_adb_backend=None):
         '''获取一个Android设备，获取成功后则独占该设备。
         
-        :param device_id: 获取制定设备id的Android设备。
+        :param device_id: 获取制定设备id的Android设备。如果为空则任意获取一台空闲设备。
         '''
         self._device = None
         if isinstance(id_or_adb_backend, str):
