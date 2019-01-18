@@ -16,7 +16,10 @@
 '''devicedriver模块单元测试
 '''
 
-import mock
+try:
+    from unittest import mock
+except:
+    import mock
 import shlex
 import unittest
 
@@ -59,6 +62,13 @@ def mock_run_shell_cmd(cmd_line, root=False, **kwds):
                 return 'true'
             else:
                 raise NotImplementedError(args[2])
+    elif args[0] == 'am':
+        if args[1] == 'start':
+            activity = ''
+            if args[2] == '-n':
+                activity = args[3]
+            if not '-w' in args:
+                return 'Starting: Intent { cmp=%s }' % activity
     raise NotImplementedError(args)
 
 class TestDeviceDriver(unittest.TestCase):
@@ -128,6 +138,10 @@ class TestDeviceDriver(unittest.TestCase):
     def test_is_debug_package(self):
         driver = self._get_device_driver()
         self.assertEqual(driver.is_debug_package('com.tencent.demo'), True)
+    
+    def test__unlock_keyguard_ge_16(self):
+        driver = self._get_device_driver()
+        self.assertEqual(driver._unlock_keyguard_ge_16(), True)
         
 if __name__ == '__main__':
     unittest.main()

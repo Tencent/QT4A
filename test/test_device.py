@@ -16,14 +16,17 @@
 '''device模块单元测试
 '''
 
-import mock
+try:
+    from unittest import mock
+except:
+    import mock
 import unittest
 
 from qt4a.androiddriver.adb import ADB, LocalADBBackend
 from qt4a.device import Device
 
-from test_androiddriver.test_adb import mock_run_shell_cmd as mock_run_shell_cmd_adb
-from test_androiddriver.test_devicedriver import mock_run_shell_cmd as mock_run_shell_cmd_dev
+from test.test_androiddriver.test_adb import mock_run_shell_cmd as mock_run_shell_cmd_adb
+from test.test_androiddriver.test_devicedriver import mock_run_shell_cmd as mock_run_shell_cmd_dev
 
 def mock_run_shell_cmd(cmd_line, root=False, **kwds):
     try:

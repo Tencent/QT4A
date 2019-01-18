@@ -16,7 +16,10 @@
 '''adb模块单元测试
 '''
 
-import mock
+try:
+    from unittest import mock
+except:
+    import mock
 import shlex
 import unittest
 
