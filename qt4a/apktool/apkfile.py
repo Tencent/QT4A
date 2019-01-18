@@ -17,7 +17,7 @@
 '''
 
 import zipfile
-import StringIO
+from io import BytesIO
 
 class APKFile(object):
     '''
@@ -27,7 +27,7 @@ class APKFile(object):
         self._dir_tree = {}  # 目录树
         with open(self._apk_path, 'rb') as f:
             apk_data = f.read()
-            self._fp = zipfile.ZipFile(StringIO.StringIO(apk_data), mode='r')
+            self._fp = zipfile.ZipFile(BytesIO(apk_data), mode='r')
             for it in self._fp.filelist:
                 self._dir_tree[it] = None
     
@@ -50,7 +50,7 @@ class APKFile(object):
         it = self._get_item(rav_path)
         if it != None:
             data = self._fp.read(it.filename)
-            return StringIO.StringIO(data)
+            return BytesIO(data)
         return None
     
     def list_dir(self, dir_rav_path):

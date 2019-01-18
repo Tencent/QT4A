@@ -16,6 +16,7 @@
 '''结构体头部基类
 '''
 
+from six import string_types, with_metaclass
 import os
 import struct
 
@@ -26,7 +27,7 @@ class HeaderMetaClass(type):
     def __init__(cls, name, bases, attrd):
         header_format = '>' if cls.big_ending else '<'
         for _, fmt in cls.__header__:
-            if not isinstance(fmt, (str, unicode)) and issubclass(fmt, StructHeaderBase): 
+            if not isinstance(fmt, string_types) and issubclass(fmt, StructHeaderBase): 
                 fmt = fmt.header_format[1:]
             header_format += fmt
 
@@ -42,10 +43,9 @@ class HeaderMetaClass(type):
         cls.total_header_size = total_header_size
         super(HeaderMetaClass, cls).__init__(name, bases, attrd)
         
-class StructHeaderBase(object):
+class StructHeaderBase(with_metaclass(HeaderMetaClass, object)):
     '''结构体头基类
     '''
-    __metaclass__ = HeaderMetaClass
     big_ending = False
     __header__ = []
     
@@ -82,7 +82,7 @@ class StructHeaderBase(object):
         '''
         offset = 0
         for i, (name, fmt) in enumerate(cls.__header__):
-            if not isinstance(fmt, (str, unicode)) and issubclass(fmt, StructHeaderBase):
+            if not isinstance(fmt, string_types) and issubclass(fmt, StructHeaderBase):
                 obj = fmt()
                 obj._set_values(fmt, items[i + offset:i + offset + fmt.header_size])
                 offset += fmt.header_size - 1
@@ -128,7 +128,7 @@ class StructHeaderBase(object):
     def serialize_header(self):
         '''序列化文件头
         '''
-        result = ''
+        result = b''
         cls = self.__class__
         while cls != StructHeaderBase:
             if cls.__header__ != cls.__base__.__header__:
