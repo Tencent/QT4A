@@ -20,10 +20,10 @@ import json
 import re
 import os
 import time
-
-from adb import ADB
-from clientsocket import AndroidSpyClient
-from util import SocketError, TimeoutError, KeyCode, logger
+import six
+from qt4a.androiddriver.adb import ADB
+from qt4a.androiddriver.clientsocket import AndroidSpyClient
+from qt4a.androiddriver.util import SocketError, TimeoutError, KeyCode, logger
 
 qt4a_path = '/data/local/tmp/qt4a'
 
@@ -114,7 +114,7 @@ class DeviceDriver(object):
     def install_package(self, pkg_path, overwrite=False):
         '''安装应用
         '''
-        from util import get_file_md5
+        from qt4a.androiddriver.util import get_file_md5
         if not os.path.exists(pkg_path):
             raise RuntimeError('APK: %r not exist' % pkg_path)
         
@@ -133,7 +133,7 @@ class DeviceDriver(object):
         '''
         try:
             self.run_driver_cmd('killProcess', package_name, root=self.adb.is_rooted())
-        except RuntimeError, e:
+        except RuntimeError as e:
             logger.warn('killProcess error: %r' % e)
         if not self.adb.is_rooted(): return
         for _ in range(3):
@@ -150,7 +150,7 @@ class DeviceDriver(object):
     def refresh_media_store(self, file_path=''):
         '''刷新图库，显示新拷贝到手机的图片
         '''
-        from adb import TimeoutError
+        from qt4a.androiddriver.adb import TimeoutError
         command = ''
         if not file_path:
             if hasattr(self, '_last_refresh_all') and time.time() - self._last_refresh_all < 2 * 60:
@@ -213,9 +213,9 @@ class DeviceDriver(object):
             else:
                 try:
                     result = self._send_command('GetCurrentWindow')
-                except SocketError, e:
+                except SocketError as e:
                     raise e
-                except RuntimeError, e:
+                except RuntimeError as e:
                     logger.warn('GetCurrentWindow error: %s' % e)
             if not result or result == 'null':
                 # 一般是设备黑屏之类
@@ -244,7 +244,8 @@ class DeviceDriver(object):
     def take_screen_shot(self, path, quality=90):
         '''截屏
         '''
-        result = self.adb.run_shell_cmd('%s/screenshot capture -q %s' % (qt4a_path, quality))  # 为避免pull文件耗时，直接写到stdout
+        result = self.adb.run_shell_cmd('%s/screenshot capture -q %s' % (qt4a_path, quality), binary_output=True)
+        # 为避免pull文件耗时，直接写到stdout
         if len(result) < 256:
             logger.warn('Take screenshot failed: %s' % result)
             return False
@@ -304,7 +305,7 @@ class DeviceDriver(object):
                     pass
                 elif 'java.lang.UnsatisfiedLinkError' in ret:
                     raise RuntimeError('启动系统测试桩进程失败：\n%s' % ret)
-            except TimeoutError, e:
+            except TimeoutError as e:
                 logger.warn('Run server timeout: %s' % e)
             
             if self._server_opend(): return True
@@ -320,7 +321,7 @@ class DeviceDriver(object):
         '''运行测试桩进程,创建服务端
         '''
         if server_name == '': server_name = self.service_name
-        from androiddriver import AndroidDriver
+        from qt4a.androiddriver.androiddriver import AndroidDriver
         port = AndroidDriver.get_process_name_hash(server_name, self.get_device_id())
         logger.info('[DeviceDriver] port is %d' % port)
         addr = '127.0.0.1'
@@ -339,7 +340,7 @@ class DeviceDriver(object):
             server_type = 'tcp'
 
         while time.time() - time0 < timeout:
-            if not kill_server and time.time() - time0 >= timeout / 2:
+            if not kill_server and time.time() - time0 >= timeout // 2:
                 # server进程存在问题，强杀
                 self._kill_server()
                 if self._client: self._client.close()
@@ -395,9 +396,9 @@ class DeviceDriver(object):
             self._client = None
             return self._send_command(cmd_type, **kwds)
             # raise SocketError('Socket连接错误')
-        if result.has_key('Error'):
+        if 'Error' in result:
             raise RuntimeError(result['Error'])
-        if not result.has_key('Result'):
+        if not 'Result' in result:
             raise RuntimeError('%s返回结果错误：%s' % (cmd_type, result))
         return result['Result']
 
@@ -441,7 +442,7 @@ class DeviceDriver(object):
         try:
             ret = self.run_driver_cmd('reboot', True, retry_count=1, timeout=30)
             if ret == 'false': return
-        except RuntimeError, e:
+        except RuntimeError as e:
             logger.warn('reboot: %r' % e)
             if pattern.match(self.device_id):
                 try:
@@ -472,7 +473,7 @@ class DeviceDriver(object):
         time1 = time0
         while time.time() - time0 < timeout:
             cpu_usage = self.adb.get_cpu_usage()
-            # print cpu_usage
+            # print (cpu_usage)
             if cpu_usage > usage :
                 time1 = time.time()
             if time.time() - time1 > duration:
@@ -519,12 +520,16 @@ class DeviceDriver(object):
         '''获取剪切板内容
         '''
         result = self.run_driver_cmd('getClipboardText', root=self.adb.is_rooted())
-        return result.decode('raw-unicode-escape')
+        if six.PY2:
+            return result.decode('raw-unicode-escape')
+        return result
     
     def set_clipboard_text(self, text):
         '''设置剪贴板内容
         '''
-        self.run_driver_cmd('setClipboardText', text.encode('raw-unicode-escape'), root=self.adb.is_rooted())
+        if six.PY2:
+            text = text.encode('raw-unicode-escape')
+        self.run_driver_cmd('setClipboardText', text, root=self.adb.is_rooted())
     
     @root_required
     def is_screen_lock_enabled(self):
@@ -743,7 +748,7 @@ class DeviceDriver(object):
         '''
         for _ in range(3):
             ret = self.run_driver_cmd('getSystemBootTime', root=self.adb.is_rooted())
-            if ret and ret.isdigit(): return int(ret) / 1000
+            if ret and ret.isdigit(): return int(ret / 1000)
             logger.warn('getSystemBootTime return %r' % ret)
             time.sleep(2)
         return 0

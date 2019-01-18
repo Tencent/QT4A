@@ -29,9 +29,9 @@ from testbase.testresult import EnumLogLevel
 from testbase.conf import settings
 from tuia.env import run_env, EnumEnvType
 
-from androiddriver import util
-from device import Device, DeviceProviderManager
-from androidapp import AndroidApp
+from qt4a.androiddriver import util
+from qt4a.device import Device, DeviceProviderManager
+from qt4a.androidapp import AndroidApp
 
 util.set_default_encoding('utf8')  # 修改默认编码
  
@@ -122,7 +122,7 @@ class AndroidTestBase(tc.TestCase):
 
         try:    
             self.test_result.log_record(EnumLogLevel.Environment, '申请 %s 设备成功：%s(%s)' % ('Android', device.model, device.device_id), {"device":device.imei})
-        except Exception, e:
+        except Exception as e:
             qta_logger.warn('GetDeviceImei error:%s' % e)
 
         if hasattr(settings, 'QT4A_DEVICE_HOSTS'):
@@ -155,7 +155,7 @@ class AndroidTestBase(tc.TestCase):
     def get_extra_fail_record(self):
         '''用例执行失败时，用于获取用例相关的错误记录和附件信息
         '''
-        from androiddriver.util import logger as qt4a_logger
+        from qt4a.androiddriver.util import logger as qt4a_logger
         pic_attachments = {}
         for device in Device.device_list:
             pic_path = "%s_%s_%s.png" % (self.__class__.__name__, get_valid_file_name(device.device_id), time.time())
@@ -189,7 +189,7 @@ class AndroidTestBase(tc.TestCase):
     def _record_screen_thread(self, device):
         '''录屏线程
         '''
-        from androiddriver.devicedriver import qt4a_path
+        from qt4a.androiddriver.devicedriver import qt4a_path
         record_time = 4 * 1000  # 每次录制的时间
         framerate = 8
         quality = 20
@@ -267,7 +267,7 @@ class AndroidTestBase(tc.TestCase):
     def extract_crash_from_logcat(self, log_list):
         '''检测logcat日志中是否有crash发生并萃取出相关日志
         '''
-        from androiddriver.util import logger as qt4a_logger
+        from qt4a.androiddriver.util import logger as qt4a_logger
         pattern_list = self.extract_crash_by_patterns()
         if self._target_crash_proc_list == []:  # 表示用户不关心任何进程的crash问题，则不对crash进行提取
             return None, None
@@ -304,7 +304,7 @@ class AndroidTestBase(tc.TestCase):
             res = regex.match(log)
             if res:
                 cur_line = {'process_name': res.group(1), 'level': res.group(2), 'tag':res.group(3), 'part_log': res.group(5), 'line_log': log}  # res.group(1)是进程名process_name的正则表达式，res.group(2)是错误级别level的正则表达式，res.group(3)是标签tag的正则表达式，res.group(4)是线程id的正则表达式，res.group(5)是线程id后的冒号后开始到本行结尾内容的正则表达式，line_log存储整行日志log。
-                if form_log_dict.has_key(res.group(4)):
+                if res.group(4) in form_log_dict:
                     form_log_dict[res.group(4)].append(cur_line)
                 else:
                     form_log_dict[res.group(4)] = [cur_line]

@@ -88,7 +88,7 @@ class AndroidApp(object):
         if not process_name:
             if not self._process_name: raise RuntimeError('主程序名为空')
             process_name = self._process_name
-        if not self._drivers.has_key(process_name):
+        if not process_name in self._drivers:
             # 只有尚未创建的时候才需要互斥
             # logger.debug('wait for %s create driver' % process_name)
             # 创建driver
@@ -146,8 +146,8 @@ class AndroidApp(object):
         :type  count:     int
         '''
         width, height = self.device.screen_size
-        mid_width = width / 2
-        mid_height = height / 2
+        mid_width = width // 2
+        mid_height = height // 2
         x1 = x2 = mid_width
         y1 = y2 = mid_height
         if direction == 'right':
@@ -394,7 +394,7 @@ class AndroidApp(object):
         if not str_id: raise RuntimeError('控件ID不能为空')
         try:
             return self.device._get_view_id(self.package_name, str_id)
-        except RuntimeError, e:
+        except RuntimeError as e:
             logger.warn(str(e))
             return None
         

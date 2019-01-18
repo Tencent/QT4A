@@ -4,7 +4,8 @@
 copy from androguard
 不要修改该文件
 '''
-
+from __future__ import print_function
+import six
 import sys
 from struct import pack, unpack
 from xml.sax.saxutils import escape
@@ -94,7 +95,7 @@ class StringBlock:
 
         # FIXME
         if (size % 4) != 0:
-            print >> sys.stderr, ("ooo")
+            print("ooo", file=sys.stderr)
 
         for i in range(0, size):
             self.m_strings.append(unpack('=b', buff.read(1))[0])
@@ -104,9 +105,9 @@ class StringBlock:
 
             # FIXME
             if (size % 4) != 0:
-                print >> sys.stderr, ("ooo")
+                print("ooo", file=sys.stderr)
 
-            for i in range(0, size / 4):
+            for i in range(0, size // 4):
                 self.m_styles.append(unpack('<i', buff.read(4))[0])
 
     def getString(self, idx):
@@ -134,35 +135,35 @@ class StringBlock:
         return self._cache[idx]
 
     def getStyle(self, idx):
-        print idx
-        print idx in self.m_styleOffsets, self.m_styleOffsets[idx]
+        print (idx)
+        print (idx in self.m_styleOffsets, self.m_styleOffsets[idx])
 
-        print self.m_styles[0]
+        print (self.m_styles[0])
 
     def decode(self, array, offset, length):
         length = length * 2
         length = length + length % 2
 
-        data = ""
+        data = b""
 
         for i in range(0, length):
             t_data = pack("=b", self.m_strings[offset + i])
-            data += unicode(t_data, errors='ignore')
-            if data[-2:] == "\x00\x00":
+            data += unicode(t_data, errors='ignore') if six.PY2 else t_data
+            if data[-2:] == b"\x00\x00":
                 break
 
-        end_zero = data.find("\x00\x00")
+        end_zero = data.find(b"\x00\x00")
         if end_zero != -1:
             data = data[:end_zero]
 
         return data.decode("utf-16", 'replace')
 
     def decode2(self, array, offset, length):
-        data = ""
+        data = b""
 
         for i in range(0, length):
             t_data = pack("=b", self.m_strings[offset + i])
-            data += unicode(t_data, errors='ignore')
+            data += unicode(t_data, errors='ignore') if six.PY2 else t_data
 
         return data.decode("utf-8", 'replace')
 
@@ -176,8 +177,8 @@ class StringBlock:
         return val << 8 | array[offset + 1] & 0xff, 2
 
     def getShort(self, array, offset):
-        value = array[offset / 4]
-        if ((offset % 4) / 2) == 0:
+        value = array[offset // 4]
+        if ((offset % 4) // 2) == 0:
             return value & 0xFFFF
         else:
             return value >> 16
@@ -186,9 +187,9 @@ class StringBlock:
         return (array[offset + 1] & 0xff) << 8 | array[offset] & 0xff
 
     def show(self):
-        print "StringBlock", hex(self.start), hex(self.header), hex(self.header_size), hex(self.chunkSize), hex(self.stringsOffset), self.m_stringOffsets
+        print ("StringBlock", hex(self.start), hex(self.header), hex(self.header_size), hex(self.chunkSize), hex(self.stringsOffset), self.m_stringOffsets)
         for i in range(0, len(self.m_stringOffsets)):
-            print i, repr(self.getString(i))
+            print (i, repr(self.getString(i)))
 
 class SV :
     def __init__(self, size, buff) :
@@ -308,16 +309,16 @@ class AXMLParser:
                 chunkSize = unpack('<L', self.buff.read(4))[0]
                 # FIXME
                 if chunkSize < 8 or chunkSize % 4 != 0:
-                    print >> sys.stderr, ("ooo")
+                    print("ooo", file=sys.stderr)
 
-                for i in range(0, chunkSize / 4 - 2):
+                for i in range(0, chunkSize // 4 - 2):
                     self.m_resourceIDs.append(unpack('<L', self.buff.read(4))[0])
 
                 continue
 
             # FIXME
             if chunkType < CHUNK_XML_FIRST or chunkType > CHUNK_XML_LAST:
-                print >> sys.stderr, ("ooo")
+                print("ooo", file=sys.stderr)
 
             # Fake START_DOCUMENT event.
             if chunkType == CHUNK_XML_START_TAG and event == -1:
@@ -435,12 +436,12 @@ class AXMLParser:
     def getAttributeOffset(self, index):
         # FIXME
         if self.m_event != START_TAG:
-            print >> sys.stderr, ("Current event is not START_TAG.")
+            print("Current event is not START_TAG.", file=sys.stderr)
 
         offset = index * 5
         # FIXME
         if offset >= len(self.m_attributes):
-            print >> sys.stderr, ("Invalid attribute index")
+            print("Invalid attribute index", file=sys.stderr)
 
         return offset
 
@@ -448,7 +449,7 @@ class AXMLParser:
         if self.m_event != START_TAG:
             return -1
 
-        return len(self.m_attributes) / ATTRIBUTE_LENGHT
+        return len(self.m_attributes) // ATTRIBUTE_LENGHT
 
     def getAttributePrefix(self, index):
         offset = self.getAttributeOffset(index)
@@ -506,7 +507,7 @@ class AXMLPrinter:
 
         while True:
             _type = self.axml.next()
-#           print "tagtype = ", _type
+#           print ("tagtype = ", _type)
 
             if _type == START_DOCUMENT:
                 self.buff += u'<?xml version="1.0" encoding="utf-8"?>\n'

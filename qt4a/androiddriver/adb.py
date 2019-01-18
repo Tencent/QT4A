@@ -16,7 +16,9 @@
 '''封装ADB功能
 '''
 
+from __future__ import unicode_literals
 from __future__ import print_function
+import six
 import os
 import sys
 import time
@@ -24,9 +26,8 @@ import subprocess
 import threading
 import re
 from pkg_resources import iter_entry_points
-
-from adbclient import ADBClient
-from util import Singleton, Deprecated, logger, ThreadEx, TimeoutError, InstallPackageFailedError, PermissionError, is_mutibyte_string
+from qt4a.androiddriver.adbclient import ADBClient
+from qt4a.androiddriver.util import Singleton, Deprecated, logger, ThreadEx, TimeoutError, InstallPackageFailedError, PermissionError, is_int, encode_wrap
 
 try:
     import _strptime  # time.strptime() is not thread-safed, so import _strptime first, otherwise it raises an AttributeError: _strptime_time
@@ -270,11 +271,11 @@ class ADB(object):
             out, err = result
 
             if err:
-                if 'error: device not found' in err:
+                if b'error: device not found' in err:
                     self.run_adb_cmd('wait-for-device', retry_count=1, timeout=self.connect_timeout)  # 等待设备连接正常
                     return self.run_adb_cmd(cmd, *args, **kwargs)
                 return err
-            if isinstance(out, basestring): out = out.strip()
+            if isinstance(out, (bytes, str)): out = out.strip()
             return out
 
     def run_shell_cmd(self, cmd_line, root=False, **kwds):
@@ -285,15 +286,23 @@ class ADB(object):
         '''
         if not self._newline:
             result = self.run_adb_cmd('shell', 'echo "1\n2"')
-            if '\r\n' in result:
-                self._newline = '\r\n'
+            if b'\r\n' in result:
+                self._newline = b'\r\n'
             else:
-                self._newline = '\n'
+                self._newline = b'\n'
                 
+        binary_output = False
+        if 'binary_output' in kwds: binary_output = kwds.pop('binary_output')
+        
         def _handle_result(result):
-            if not isinstance(result, (str, unicode)): return result
-            if self._newline != '\n':
-                result = result.replace(self._newline, '\n')
+            if not isinstance(result, (bytes, str)): return result
+            if self._newline != b'\n':
+                result = result.replace(self._newline, b'\n')
+                
+            if binary_output: 
+                return result
+            else:
+                result = result.decode('utf8')
                 
             if self._shell_prefix != None and self._shell_prefix > 0:
                 result = '\n'.join(result.split('\n')[self._shell_prefix:])
@@ -392,7 +401,7 @@ class ADB(object):
             if self._log_pipe.poll() == None:  # 判断logcat进程是否存在
                 try:
                     self._log_pipe.terminate()
-                except WindowsError, e:
+                except WindowsError as e:
                     logger.warn('terminate logcat process failed: %s' % e)
                     
         if hasattr(self, '_logcat_thread'):
@@ -414,20 +423,21 @@ class ADB(object):
         '''
         if not hasattr(self, '_log_list'): return
         log_list = self.get_log()
-        for i in range(len(log_list)):
-            log = log_list[i]
-            if not isinstance(log, unicode):
-                # 先编码为unicode
-                for code in ['utf8', 'gbk']:
-                    try:
-                        log = log.decode(code)
-                        break
-                    except UnicodeDecodeError, e:
-                        # logger.warn('decode with %s error: %s' % (code, e))
-                        pass
-                else:
-                    log = repr(log)
-            log_list[i] = log.encode('utf8') if isinstance(log, unicode) else log
+        if six.PY2:
+            for i in range(len(log_list)):
+                log = log_list[i]
+                if not isinstance(log, unicode):
+                    # 先编码为unicode
+                    for code in ['utf8', 'gbk']:
+                        try:
+                            log = log.decode(code)
+                            break
+                        except UnicodeDecodeError as e:
+                            # logger.warn('decode with %s error: %s' % (code, e))
+                            pass
+                    else:
+                        log = repr(log)
+                log_list[i] = log.encode('utf8') if isinstance(log, unicode) else log
         f = open(save_path, 'w')
         f.write('\n'.join(log_list))
         f.close()
@@ -473,7 +483,7 @@ class ADB(object):
         zygote_pid = 0  # zygote进程ID
 
         while self._logcat_running:
-            log = self._log_pipe.stdout.readline().strip()
+            log = self._log_pipe.stdout.readline().decode('utf8').strip()
             if not log:
                 if self._log_pipe.poll() != None:
                     logger.debug('logcat进程：%s 已退出' % self._log_pipe.pid)
@@ -512,7 +522,7 @@ class ADB(object):
                         zygote_pid = item['pid']
 
                     for init_process in init_process_list:
-                        if pid_dict.has_key(item['pid']) and pid_dict[item['pid']].startswith(init_process) and not item['proc_name'].startswith(init_process):
+                        if item['pid'] in pid_dict and pid_dict[item['pid']].startswith(init_process) and not item['proc_name'].startswith(init_process):
 
                             for i in range(len(self._log_list) - 1, -1, -1):
                                 # 修复之前记录的“<pre-initialized>”进程
@@ -543,8 +553,8 @@ class ADB(object):
             if not process_list:
                 found = True  # 不指定进程列表则捕获所有进程
             else:
-                for process in process_list:
-                    if pid == process or (pid_dict.has_key(pid) and (pid_dict[pid].startswith(process) or pid_dict[pid].startswith('<pre-initialized>') \
+                for process in process_list: 
+                    if pid == process or (pid in pid_dict and (pid_dict[pid].startswith(process) or pid_dict[pid].startswith('<pre-initialized>') \
                                                                      or (pid_dict[pid].startswith('zygote') and pid != zygote_pid))):  # 进程初始化中
                         found = True
                         break
@@ -640,7 +650,7 @@ class ADB(object):
     def push_file(self, src_path, dst_path, uid=None):
         '''以指定身份拷贝文件到手机中
         '''
-        if isinstance(dst_path, unicode): dst_path = dst_path.encode('utf8')
+        if six.PY2 and isinstance(dst_path, unicode): dst_path = dst_path.encode('utf8')
         file_size = 0
         for _ in range(3):
             file_size = os.path.getsize(src_path)  # 防止取到的文件大小不正确
@@ -660,9 +670,9 @@ class ADB(object):
                         logger.debug(repr(file_list[0]))
                         if uid: self.chown(dst_path, uid, uid)
                         return result
-                except RuntimeError, e:
+                except RuntimeError as e:
                     err_msg = e.args[0]
-                    if not isinstance(err_msg, unicode):
+                    if six.PY2 and (not isinstance(err_msg, unicode)):
                         err_msg = err_msg.decode('utf8')
                     logger.warn(err_msg)
             else:
@@ -779,7 +789,7 @@ class ADB(object):
                     time.sleep(30)
                 else:
                     return False, ret
-            except TimeoutError, e:
+            except TimeoutError as e:
                 logger.warn('install app timeout: %r' % e)
         else:
             logger.warn('install app failed')
@@ -820,8 +830,11 @@ class ADB(object):
                     result = self._install_apk(tmp_path, package_name, reinstall)
             else:
                 err_msg = result[1]
-                if isinstance(err_msg, unicode): err_msg = err_msg.encode('utf8')
-                if isinstance(package_name, unicode): package_name = package_name.encode('utf8')
+                if six.PY2:
+                    if isinstance(err_msg, unicode): 
+                        err_msg = err_msg.encode('utf8')
+                    if isinstance(package_name, unicode): 
+                        package_name = package_name.encode('utf8')
                 raise InstallPackageFailedError('安装应用%s失败：%s' % (package_name, err_msg))
         try:
             self.delete_file('/data/local/tmp/*.apk')
@@ -856,7 +869,8 @@ class ADB(object):
         '''
         return self.uninstall_app(pkg_name)
 # endif
-
+    
+    @encode_wrap
     def get_package_path(self, pkg_name):
         '''获取应用安装包路径
         '''
@@ -869,6 +883,7 @@ class ADB(object):
             time.sleep(1)
         return ''
     
+    @encode_wrap
     def get_package_version(self, pkg_name):
         '''获取应用版本
         '''
@@ -877,7 +892,8 @@ class ADB(object):
             line = line.strip()
             if line.startswith('versionName='):
                 return line[12:]
-        
+    
+    @encode_wrap    
     def _build_intent_extra_string(self, extra):
         '''构造intent参数列表
         '''
@@ -887,19 +903,21 @@ class ADB(object):
             if extra[key] in ['true', 'false']:
                 p_type = 'z'  # EXTRA_BOOLEAN_VALUE
             elif isinstance(extra[key], int):
-                p_type = 'i'  # EXTRA_INT_VALUE
-            elif isinstance(extra[key], long):
-                p_type = 'l'  # EXTRA_LONG_VALUE
+                if is_int(extra[key]):
+                    p_type = 'i'  # EXTRA_INT_VALUE
+                else:
+                    p_type = 'l'  # EXTRA_LONG_VALUE
             elif isinstance(extra[key], float):
                 p_type = 'f'  # EXTRA_FLOAT_VALUE
             elif extra[key].startswith('file://'):  # EXTRA_URI_VALUE
                 p_type = 'u'
             param = '-e%s %s %s ' % (p_type, key, ('"%s"' % extra[key]) if not p_type else extra[key])
-            if p_type: param = '-' + param
+            if p_type: param = u'-' + param
             extra_str += param
         if len(extra_str) > 0: extra_str = extra_str[:-1]
-        return extra_str.encode('utf8')
+        return extra_str
     
+    @encode_wrap
     def start_activity(self, activity_name, action='', type='', data_uri='', extra={}, wait=True):
         '''打开一个Activity
         Warning: Activity not started, intent has been delivered to currently running top-most instance.
@@ -911,14 +929,14 @@ class ADB(object):
         '''
         if activity_name:
             activity_name = '-n %s' % activity_name
-        if action != '':  # 指定Action
+        if action:  # 指定Action
             action = '-a %s ' % action
-        if type != '':
+        if type:
             type = '-t %s ' % type
-        if data_uri != '':
+        if data_uri:
             data_uri = '-d "%s" ' % data_uri
         extra_str = self._build_intent_extra_string(extra)
-        W = ''
+        W = u''
         if wait: W = '-W'  # 等待启动完成才返回
         # 如果/sbin/sh指向busybox，就会返回“/sbin/sh: am: not found”错误
         # 返回am找不到是因为am缺少“#!/system/bin/sh”
@@ -945,7 +963,7 @@ class ADB(object):
             if ': ' in line:
                 key, value = line.split(': ')
                 ret_dict[key] = value
-        if ret_dict.has_key('Error'):
+        if 'Error' in ret_dict:
             raise RuntimeError(ret_dict['Error'])
         return ret_dict
     
@@ -1119,7 +1137,7 @@ class ADB(object):
 #            #加了-p参数貌似不会返回这个提示信息
         try:
             self.list_dir(dir_path)
-        except RuntimeError, e:
+        except RuntimeError as e:
             logger.warn('mkdir %s failed: %s(%s)' % (dir_path, ret, e))
             return self.mkdir(dir_path, mod)
         # 修改权限
@@ -1277,7 +1295,7 @@ class ADB(object):
         cmd_res_path = '/sdcard/qt4a_cmd_res.txt'
         self.delete_file(cmd_res_path)
         timeout = 30
-        if kwargs.has_key('timeout'):
+        if 'timeout' in kwargs:
             timeout = kwargs['timeout']
         try:
             self.start_activity('%s/com.test.androidspy.inject.CmdExecuteActivity' % package_name, extra={'cmdline':cmdline, 'timeout':timeout}, wait=False)
@@ -1297,7 +1315,7 @@ class ADB(object):
                 self.list_dir(cmd_res_path)
                 result = self.run_shell_cmd("cat %s" % cmd_res_path)
                 return result
-            except RuntimeError, e:
+            except RuntimeError as e:
                 logger.info('run_as_by_app exception:%s' % e); 
                 time.sleep(1) 
         raise TimeoutError("run_as_by_app timeout:%d" % timeout)
@@ -1342,7 +1360,7 @@ class ADB(object):
         :tytpe process: string/int
         '''
         process_name = ''
-        if isinstance(process, (str, unicode)) and not process.isdigit():
+        if isinstance(process, six.string_types) and not process.isdigit():
             process_name = process
             pid = self.get_pid(process)
         else:
@@ -1402,7 +1420,7 @@ class ADB(object):
         for _ in range(3):
             try:
                 return self._list_process()
-            except RuntimeError, e:
+            except RuntimeError as e:
                 logger.warn('%s' % e)
         else:
             raise RuntimeError('获取进程列表失败')
@@ -1458,7 +1476,7 @@ class ADB(object):
         package_name = None
         process_list = self.list_process()
         for process in process_list:
-            if isinstance(proc_name_or_pid, (str, unicode)) and proc_name_or_pid in process['proc_name']:
+            if isinstance(proc_name_or_pid, six.string_types) and proc_name_or_pid in process['proc_name']:
                 if process['proc_name'] == proc_name_or_pid:
                     # 保证主进程首先被杀
                     kill_list.insert(0, process['pid'])
@@ -1478,7 +1496,7 @@ class ADB(object):
             result = self.run_shell_cmd(cmd_line)
         elif self.is_rooted():
             result = self.run_shell_cmd(cmd_line, True)
-        elif isinstance(package_name, (str, unicode)):
+        elif isinstance(package_name, six.string_types):
             # package
             result = self.run_as(package_name, cmd_line)
         else:
@@ -1530,7 +1548,7 @@ class ADB(object):
         '''获取进程中每个线程的CPU占用率
         '''
         pid = self.get_pid(proc_name)
-        # print pid'
+        # print (pid)
         if not pid: return None
         total_cpu1 = self.get_cpu_total_time()
         process_cpu1 = self.get_process_cpu_time(pid)
@@ -1542,7 +1560,7 @@ class ADB(object):
         total_cpu = total_cpu2 - total_cpu1
         process_cpu = process_cpu2 - process_cpu1
         thread_cpu = thread_cpu2 - thread_cpu1
-        return process_cpu * 100 / total_cpu, thread_cpu * 100 / total_cpu
+        return process_cpu * 100 // total_cpu, thread_cpu * 100 // total_cpu
 
     @staticmethod
     def list_device():
@@ -1565,7 +1583,7 @@ class ADB(object):
     def open_device(name_or_backend=None):
         '''打开设备
         '''
-        if isinstance(name_or_backend, str):
+        if isinstance(name_or_backend, six.string_types):
             adb_backend = LocalADBBackend.open_device(name_or_backend)
         else:
             adb_backend = name_or_backend
@@ -1585,7 +1603,7 @@ class ADB(object):
         proc = subprocess.Popen([adb_path, 'connect', name], stdout=subprocess.PIPE)
         result = proc.stdout.read()
         if result.find('unable to connect to') >= 0:
-            print >> sys.stderr, result
+            print(result, file=sys.stderr)
             return False
         return True
 
@@ -1619,7 +1637,7 @@ class ADB(object):
         idle_time = idle_time2 - idle_time1
         if total_time == 0 :
             return -1
-        return (total_time - idle_time) * 100 / total_time
+        return (total_time - idle_time) * 100 // total_time
 
     @static_result
     def is_art(self):
@@ -1632,7 +1650,7 @@ class ADB(object):
     def dump_stack(self, pid_or_procname):
         '''获取进程调用堆栈
         '''
-        if isinstance(pid_or_procname, (str, unicode)):
+        if isinstance(pid_or_procname, six.string_types):
             pid = self.get_pid(pid_or_procname)
         else:
             pid = pid_or_procname
@@ -1653,4 +1671,3 @@ class ADB(object):
 
 if __name__ == '__main__':
     pass
-    

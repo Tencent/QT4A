@@ -19,8 +19,8 @@
 import os
 
 from tuia.exceptions import ControlNotFoundError
-from qpath import QPath
-from andrcontrols import Window, View, TextView, Button, GridView
+from qt4a.qpath import QPath
+from qt4a.andrcontrols import Window, View, TextView, Button, GridView
 
 class Toast(Window):
     '''封装Toast

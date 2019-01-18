@@ -17,9 +17,9 @@
 '''
 
 
-from __init__ import APKError
-from axml import AXMLFile
-from apkfile import APKFile
+from qt4a.apktool.__init__ import APKError
+from qt4a.apktool.axml import AXMLFile
+from qt4a.apktool.apkfile import APKFile
 
 
 class AndroidManifest(object):

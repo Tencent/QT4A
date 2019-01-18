@@ -16,12 +16,16 @@
 '''androiddriver模块单元测试
 '''
 
-import mock
+try:
+    from unittest import mock
+except:
+    import mock
 import unittest
 
 from qt4a.androiddriver.devicedriver import DeviceDriver
 from qt4a.androiddriver.androiddriver import AndroidDriver
 from qt4a.androiddriver.adb import LocalADBBackend, ADB
+from qt4a.androiddriver.util import AndroidSpyError
 
 def mock_send_command(cmd_type, **kwds):
     control = 0x12345678
@@ -35,6 +39,13 @@ def mock_send_command(cmd_type, **kwds):
         return {'Result': True}
     elif cmd_type == 'SetActivityPopup':
         return {'Result': True}
+    elif cmd_type == 'Drag':
+        if abs(kwds['X1'] - kwds['X2']) > 1000:
+            raise AndroidSpyError('java.lang.SecurityException: xxxx')
+        return {'Result': True}
+
+def mock_get_current_activity():
+    return 'FooActivity'
     
 class TestAndroidDriver(unittest.TestCase):
     '''AndroidDriver类测试用例
@@ -65,6 +76,17 @@ class TestAndroidDriver(unittest.TestCase):
         AndroidDriver.send_command = mock.Mock(side_effect=mock_send_command)
         driver = self._create_driver()
         self.assertEqual(driver.get_control_visibility(0x12345678), True)
+    
+    def test_drag(self):
+        AndroidDriver.send_command = mock.Mock(side_effect=mock_send_command)
+        driver = self._create_driver()
+        self.assertEqual(driver.drag(100, 400, 200, 600), True)
+    
+    def test_drag_fail(self):
+        AndroidDriver.send_command = mock.Mock(side_effect=mock_send_command)
+        DeviceDriver.get_current_activity = mock.Mock(side_effect=mock_get_current_activity)
+        driver = self._create_driver()
+        self.assertEqual(driver.drag(100, 400, 1200, 600), False)
         
 if __name__ == '__main__':
     unittest.main()

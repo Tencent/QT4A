@@ -16,7 +16,10 @@
 '''andrcontrols模块单元测试
 '''
 
-import mock
+try:
+    from unittest import mock
+except:
+    import mock
 import unittest
 
 from qt4a.andrcontrols import Window, TextView, EditText
@@ -47,4 +50,3 @@ class TestWindow(unittest.TestCase):
     
     def test_wait_for_exist(self):
         pass
-    

@@ -16,7 +16,10 @@
 '''qpath模块单元测试
 '''
 
-import mock
+try:
+    from unittest import mock
+except:
+    import mock
 import unittest
 
 from qt4a.qpath import QPath

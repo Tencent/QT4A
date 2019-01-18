@@ -15,7 +15,8 @@
 
 '''Android测试桩代理
 '''
-
+from __future__ import print_function
+import six
 import json
 import os
 import sys
@@ -23,9 +24,9 @@ import tempfile
 import threading
 import time
 
-from clientsocket import AndroidSpyClient, DirectAndroidSpyClient
-from devicedriver import DeviceDriver
-from util import logger, SocketError, AndroidSpyError, ControlExpiredError, ProcessExitError, Mutex, extract_from_zipfile
+from qt4a.androiddriver.clientsocket import AndroidSpyClient, DirectAndroidSpyClient
+from  qt4a.androiddriver.devicedriver import DeviceDriver
+from  qt4a.androiddriver.util import logger, SocketError, AndroidSpyError, ControlExpiredError, ProcessExitError, Mutex, extract_from_zipfile
 
 class EnumCommand(object):
     '''所有支持的命令字
@@ -69,8 +70,8 @@ class EnumCommand(object):
 def copy_android_driver(device_id_or_adb, force=False, root_path=None, enable_acc=True):
     '''测试前的测试桩拷贝
     '''
-    from adb import ADB
-    from util import AndroidPackage, version_cmp
+    from qt4a.androiddriver.adb import ADB
+    from qt4a.androiddriver.util import AndroidPackage, version_cmp
     
     if isinstance(device_id_or_adb, ADB):
         adb = device_id_or_adb
@@ -102,7 +103,7 @@ def copy_android_driver(device_id_or_adb, force=False, root_path=None, enable_ac
     
         if version and not 'No such file or directory' in version and current_version <= int(version):
             # 不需要拷贝测试桩
-            logger.warn('忽略本次测试桩拷贝：当前版本为%s，设备中版本为%s' % (current_version, version))
+            logger.warn('忽略本次测试桩拷贝：当前版本为%s，设备中版本为%s' % (current_version, int(version)))
             return
     
     try:
@@ -113,7 +114,7 @@ def copy_android_driver(device_id_or_adb, force=False, root_path=None, enable_ac
     rooted = adb.is_rooted()
         
     cpu_abi = adb.get_cpu_abi()
-    print('Current CPU arch：%s' % cpu_abi)
+    print('Current CPU arch: %s' % cpu_abi)
     use_pie = False
     if adb.get_sdk_version() >= 21 and cpu_abi != 'arm64-v8a': use_pie = True
         
@@ -150,8 +151,8 @@ def copy_android_driver(device_id_or_adb, force=False, root_path=None, enable_ac
         adb.chmod('%sinject64' % dst_path, 755)
 
     try:
-        print adb.run_shell_cmd('rm -R %scache' % dst_path, rooted)  # 删除目录 rm -rf
-    except RuntimeError, e:
+        print (adb.run_shell_cmd('rm -R %scache' % dst_path, rooted))  # 删除目录 rm -rf
+    except RuntimeError as e:
         logger.warn('%s' % e)
     # logger.info(adb.run_shell_cmd('mkdir %scache' % (dst_path), True)) #必须使用root权限，不然生成odex文件会失败
 
@@ -368,7 +369,7 @@ class AndroidDriver(object):
                         self._adb.kill_process(tracer_pid)
                 time.sleep(1)
                 
-        except RuntimeError, e:
+        except RuntimeError as e:
             logger.exception('%s\n%s' % (e, self._adb.run_shell_cmd('ps')))
             logger.info(self._adb.dump_stack(self._process_name))
             raise e
@@ -432,7 +433,7 @@ class AndroidDriver(object):
     def _get_lock(self, thread_id):
         '''获取锁
         '''
-        if not self._sync_lock.has_key(thread_id):
+        if not thread_id in self._sync_lock:
             self._sync_lock[thread_id] = threading.Event()
             self._sync_lock[thread_id].set()
         return self._sync_lock[thread_id]
@@ -493,7 +494,7 @@ class AndroidDriver(object):
                 raise SocketError('Connect Failed')
             else:
                 raise SocketError('Connect Failed')
-        if result.has_key('Error'):
+        if 'Error' in result:
             if result['Error'] == u'控件已失效':
                 raise ControlExpiredError(result['Error'])
             elif result['Error'] == u'控件类型错误':
@@ -543,19 +544,19 @@ class AndroidDriver(object):
             kwds['GetPosition'] = get_position
         try:
             result = self.send_command(EnumCommand.CmdGetControl, **kwds)
-        except ControlExpiredError, e:
+        except ControlExpiredError as e:
             raise e
-        except AndroidSpyError, e:
+        except AndroidSpyError as e:
             err_msg = e.args[0]
-            if isinstance(err_msg, unicode):
+            if six.PY2 and isinstance(err_msg, unicode):
                 err_msg = err_msg.encode('utf8')
             if '找到重复控件' in err_msg or 'Multiple controls found' in err_msg:
                 try:
-                    print >> sys.stderr, e.args[0]
+                    print(e.args[0], file=sys.stderr)
                 except:
                     pass
                 qpath = '/'.join(' && '.join([(key + it[key][0] + '"' + str(it[key][1]) + '"') for key in it.keys()]) for it in locator)
-                if isinstance(qpath, unicode): qpath = qpath.encode('utf8')
+                if six.PY2 and isinstance(qpath, unicode): qpath = qpath.encode('utf8')
                 err_msg = '定位到重复控件：/%s' % qpath
                 try:
                     from tuia.exceptions import ControlAmbiguousError
@@ -596,9 +597,8 @@ class AndroidDriver(object):
         result = result['Result']
         if html_format:
             # 处理html编码
-            import HTMLParser
-            html_parser = HTMLParser.HTMLParser()
-            result = html_parser.unescape(result)
+            from six.moves.html_parser import HTMLParser
+            result = HTMLParser().unescape(result)
         return result
     
     def set_control_text(self, control, text):
@@ -694,7 +694,7 @@ class AndroidDriver(object):
     def capture_control(self, control):
         result = self.send_command(EnumCommand.CmdCaptureControl, Control=control)
         data = result['Result']
-        # print data
+        # print (data)
         import base64
         data = base64.decodestring(data)
         return data
@@ -702,7 +702,7 @@ class AndroidDriver(object):
     def send_key(self, key_list):
         '''发送按键，只允许单个按键或组合键
         '''
-        from util import KeyCode
+        from qt4a.androiddriver.util import KeyCode
         if isinstance(key_list, str):
             return self.send_keys(key_list)
         elif isinstance(key_list, int):
@@ -722,7 +722,7 @@ class AndroidDriver(object):
     def send_keys(self, text):
         '''发送字符串，目前不支持中文
         '''
-        from util import KeyCode
+        from qt4a.androiddriver.util import KeyCode
         key_list = KeyCode.get_key_list(text)
         for key in key_list:
             self.send_key(key)
@@ -736,9 +736,9 @@ class AndroidDriver(object):
                 result = self.send_command(EnumCommand.CmdClick, X=x, Y=y, SleepTime=int(sleep_time * 1000))
             else:
                 result = self.send_command(EnumCommand.CmdClick, Control=control, X=x, Y=y, SleepTime=int(sleep_time * 1000))
-            # print result['Result']
+            # print (result['Result'])
             return result['Result']
-        except AndroidSpyError, e:
+        except AndroidSpyError as e:
             if str(e).find('java.lang.SecurityException') >= 0:
                 # 有时操作过快会出现该问题
                 return False
@@ -774,7 +774,7 @@ class AndroidDriver(object):
         :type send_up_event: boolean 
         '''
         if y1 != y2 and abs(y1 - y2) < 60:  # 此时滑动距离会很短
-            m = (y1 + y2) / 2  # 保证最短滑动距离为40，在索尼ce0682上发现小于40时会变成点击 三星9300上发现有时60像素以下滑动不起来
+            m = (y1 + y2) // 2  # 保证最短滑动距离为40，在索尼ce0682上发现小于40时会变成点击 三星9300上发现有时60像素以下滑动不起来
             if y1 - y2 > 0: d = 30
             else: d = -30
             y1 = m + d  # TODO:坐标合法性判断
@@ -786,7 +786,7 @@ class AndroidDriver(object):
                                          SleepTime=wait_time,
                                          SendDownEvent=send_down_event,
                                          SendUpEvent=send_up_event)
-            except AndroidSpyError, e:
+            except AndroidSpyError as e:
                 if str(e).find('java.lang.SecurityException') >= 0:
                     logger.info('java.lang.SecurityException,current activity:%s' % self._device_driver.get_current_activity())  # 检测是否有弹窗
                     # 有时操作过快会出现该问题
@@ -916,4 +916,3 @@ class AndroidDriver(object):
         
 if __name__ == '__main__':
     pass
-

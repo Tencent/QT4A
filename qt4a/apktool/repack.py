@@ -16,14 +16,14 @@
 '''重打包
 '''
 
-
+import six
 import json
 import logging
 import os, sys
 import subprocess
 import tempfile
-from apkfile import APKFile
-from manifest import AndroidManifest
+from qt4a.apktool.apkfile import APKFile
+from qt4a.apktool.manifest import AndroidManifest
 
 def get_apk_signature(rsa_file_path):
     '''获取应用签名
@@ -52,7 +52,7 @@ def dex2jar(dex_path, jar_path):
     logging.info(' '.join(cmdline))
     proc = subprocess.Popen(cmdline, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
     result = proc.communicate()[1]
-    if not '->' in result:
+    if not b'->' in result:
         raise RuntimeError('convert dex %s to jar failed: %s' % (dex_path, result))
 
 def jar2dex(jar_path, dex_path):
@@ -93,8 +93,8 @@ def merge_dex(dst_dex, src_dexs):
     logging.info(' '.join(cmdline))
     proc = subprocess.Popen(cmdline, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
     result = proc.communicate()
-    if not 'Took' in result[0]:
-        if 'non-jumbo instruction' in result[1]:
+    if not b'Took' in result[0]:
+        if b'non-jumbo instruction' in result[1]:
             # 应用未使用jumbo模式编译，这里做一次转换
             logging.warn('change dex to jumbo mode')
             rebuild_dex_with_jumbo(src_dexs[0])
@@ -114,7 +114,7 @@ def resign_apk(apk_path):
                key_file_path, '-signedjar', save_path, apk_path, 'qt4a']
     logging.info(' '.join(cmdline))
     proc = subprocess.Popen(cmdline, stdin=subprocess.PIPE)
-    out, err = proc.communicate('test@123')
+    out, err = proc.communicate(b'test@123')
     if out: logging.info('jarsigner: ' + out)
     if err: logging.warn('jarsigner: ' + err)
     return save_path

@@ -16,11 +16,12 @@
 '''AXML格式处理
 '''
 
+import six
 import re
 import struct
 import xml.dom.minidom
-from __init__ import APKError
-from header import StructHeaderBase
+from qt4a.apktool.__init__ import APKError
+from qt4a.apktool.header import StructHeaderBase
 
 class EnumAttrType(object):
     '''These are attribute resource constants for the platform, as found in android.R.attr
@@ -157,7 +158,7 @@ class ResValue(StructHeaderBase):
     def convert_from(val):
         '''根据val生成ResValue对象
         '''
-        assert(isinstance(val, (str, unicode)))
+        assert(isinstance(val, six.string_types))
         rv = ResValue()
         ref_pattern = re.compile(r'^@0x[\w|\d]+$')
         hex_pattern = re.compile(r'^0x[\w|\d]+$')
@@ -353,7 +354,7 @@ class ResStringPoolChunk(ResStringPoolHeader):
     def add_string(self, string):
         '''添加字符串
         '''
-        if not isinstance(string, unicode):
+        if six.PY2 and not isinstance(string, unicode):
             string = string.decode('utf8')
         if len(self.string_list) == 0:
             self.string_offset_list.append(0)
@@ -386,11 +387,14 @@ class ResStringPoolChunk(ResStringPoolHeader):
             
             string = self._fp.read(str_len)
             if not self._utf8_flag:
-                string = ''.join([unichr(struct.unpack('<H', string[i:i + 2])[0]) for i in range(0, str_len, 2)])
-                string = string.encode('utf8')
-                assert(self._fp.read(2) == '\x00\x00')
+                if six.PY2:
+                    string = ''.join([unichr(struct.unpack('<H', string[i:i + 2])[0]) for i in range(0, str_len, 2)])
+                    string = string.encode('utf8')
+                else:
+                    string = ''.join([chr(struct.unpack('<H', string[i:i + 2])[0]) for i in range(0, str_len, 2)])
+                assert(self._fp.read(2) == b'\x00\x00')
             else:
-                assert(self._fp.read(1) == '\x00')
+                assert(self._fp.read(1) == b'\x00')
             
             self.string_list.append(string)
             
@@ -400,13 +404,13 @@ class ResStringPoolChunk(ResStringPoolHeader):
     def build_strings(self):
         '''
         '''
-        result = ''
+        result = b''
         for string in self.string_list:
             str_len = len(string)
             result += struct.pack('<H', str_len)
             for c in string:
                 result += struct.pack('<H', ord(c))
-            result += '\x00\x00'
+            result += b'\x00\x00'
         return result
     
     def parse(self):
@@ -424,12 +428,14 @@ class ResStringPoolChunk(ResStringPoolHeader):
         self.read_strings()
         
         if self._fp.tell() < self.size + 8:
-            assert(self._fp.read(2) == '\x00\x00')  # styles
+            assert(self._fp.read(2) == b'\x00\x00')  # styles
         
         total_size = self.total_header_size + 4 * self.string_count + 4 * self.style_count
         for s in self.string_list:
             if not self._utf8_flag:
-                total_size += (len(s.decode('utf8')) + 2) * 2
+                if six.PY2:
+                    s = s.decode('utf8')
+                total_size += (len(s) + 2) * 2
             else:
                 total_size += len(s) + 3
         assert(self.size % 4 == 0)
@@ -437,14 +443,14 @@ class ResStringPoolChunk(ResStringPoolHeader):
     def serialize(self):
         '''序列化
         '''
-        result = ''
+        result = b''
         for it in self.string_offset_list:
             result += struct.pack('I', it)
         for it in self.style_offset_list:
             result += struct.pack('I', it)
         result += self.build_strings()
         if len(result) % 4 != 0:
-            result += '\x00\x00'
+            result += b'\x00\x00'
         self.size = self.total_header_size + len(result)
         result = self.serialize_header() + result
         return result
@@ -461,7 +467,7 @@ class ResXMLResourceMapChunk(ResChunkHeader):
     def parse(self):
         super(ResXMLResourceMapChunk, self).parse()
         total_size = self.total_header_size
-        for _ in range((self.size - self.header_size) / 4):
+        for _ in range((self.size - self.header_size) // 4):
             self.res_map.append(struct.unpack('I', self._fp.read(4))[0])
             total_size += 4
         for it in self.res_map:
@@ -477,7 +483,7 @@ class ResXMLResourceMapChunk(ResChunkHeader):
         assert(self.size == total_size)
     
     def serialize(self):
-        result = ''
+        result = b''
         for it in self.res_map:
             result += struct.pack('I', it)
         self.size = self.total_header_size + len(result)
@@ -815,7 +821,7 @@ class AXMLFile(ResXMLTreeHeader):
             obj.res_map_chunk.res_map.append(val)
         
         def _get_string_index(s):
-            if not isinstance(s, unicode):
+            if six.PY2 and not isinstance(s, unicode):
                 s = s.decode('utf8')
             try:
                 return obj.string_pool_chunk.string_list.index(s)
