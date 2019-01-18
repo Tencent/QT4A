@@ -16,13 +16,16 @@
 '''ADB客户端，用于与ADB守护进程通信
 '''
 
+from __future__ import unicode_literals
+
+import six
 import os
 import time
 import socket, select
 import struct
 import threading
-import cStringIO
-from util import logger, TimeoutError
+from io import BytesIO
+from qt4a.androiddriver.util import logger, TimeoutError
 
 SYNC_DATA_MAX = 64 * 1024
 
@@ -33,15 +36,15 @@ class Pipe(object):
     '''模拟实现内存管道
     '''
     def __init__(self):
-        self._buffer = cStringIO.StringIO()
+        self._buffer = BytesIO()
         self._max_buffer_size = 4096 * 16
         self._lock = threading.Lock()
         self._pos = 0  # 当前读指针位置
-        self._write_buffer = ''  # 保证每次都是整行写
+        self._write_buffer = b''  # 保证每次都是整行写
         
     def write(self, s):
         self._write_buffer += s
-        pos = self._write_buffer.rfind('\n')
+        pos = self._write_buffer.rfind(b'\n')
         if pos <= 0: return
         s = self._write_buffer[:pos]
         self._write_buffer = self._write_buffer[pos:]
@@ -74,7 +77,7 @@ class Pipe(object):
                         self._buffer.seek(self._pos)
                         buffer = self._buffer.read()
                         self._buffer.close()
-                        self._buffer = cStringIO.StringIO()
+                        self._buffer = BytesIO()
                         self._buffer.write(buffer)
                         self._pos = 0
                     return ret
@@ -100,7 +103,6 @@ class ADBPopen(object):
             self._sock = sock
             
         def write(self, s):
-            # print 'send', repr(s)
             self._sock.send(s)
         
         def flush(self):
@@ -142,18 +144,20 @@ class ADBPopen(object):
             if len(infds) > 0:
                 try:
                     buff = self._sock.recv(4096)
-                    if len(buff) == 0: 
+                    if len(buff) == 0:
                         self._sock.close()
+                        self._sock = None
                         self._running = False
                         self._event.set()
                         return
                     self._stdout.write(buff)
-                except socket.error, e:
+                except socket.error as e:
                     logger.info("接收返回数据错误： %s" % (e))
 #                    import traceback
 #                    traceback.print_exc()
-                    self._stdout.write(' ')  # 通知接收方退出
+                    self._stdout.write(b' ')  # 通知接收方退出
                     self._sock.close()
+                    self._sock = None
                     self._running = False
                     self._event.set()
                     return
@@ -179,7 +183,7 @@ class ADBPopen(object):
         '''
         while True:
             if self._event.wait(0.001) == True or self.poll() == 0: 
-                if self._running: raise TimeoutError('execute timeout')
+                if self._running: raise TimeoutError('Execute timeout')
                 return self.stdout.read(), self.stderr.read()
             # time.sleep(0.001)
             
@@ -206,13 +210,14 @@ class ADBClient(object):
         cmd = cmd.replace('-', '_')
         if cmd == 'forward' and args[1] == '--remove':
             method = getattr(self, 'remove_forward')
-            args = args[2:]
+            args = list(args)
+            args.pop(1)  # remove --remove args
         else:
             method = getattr(self, cmd)
-        # print args
+        # print (args)
         sync = True
-        if kwds.has_key('sync'): sync = kwds.pop('sync')
-        if kwds.has_key('timeout') and not cmd in ('shell', 'install', 'uninstall', 'wait_for_device', 'reboot'): kwds.pop('timeout')
+        if 'sync' in kwds: sync = kwds.pop('sync')
+        if 'timeout' in kwds and not cmd in ('shell', 'install', 'uninstall', 'wait_for_device', 'reboot'): kwds.pop('timeout')
         if sync: 
             ret = None
             retry_count = kwds.pop('retry_count')
@@ -223,12 +228,12 @@ class ADBClient(object):
                     self._lock.acquire()
                     ret = method(*args, **kwds)
                     break
-                except socket.error, e:
+                except socket.error as e:
                     logger.exception(u'执行%s %s error' % (cmd, ' '.join(args)))
                     socket_error_count += 1
                     if socket_error_count <= 10: i -= 1
                     time.sleep(1)
-                except AdbError, e:
+                except AdbError as e:
                     err_msg = str(e)
                     if 'device not found' in err_msg:
                         return '', 'error: device not found'
@@ -245,7 +250,7 @@ class ADBClient(object):
                         raise RuntimeError(u'执行%s %s 命令失败：%s' % (cmd, ' '.join(args), e))
                     time.sleep(1)
                     if i >= retry_count - 1: raise e
-                except RuntimeError, e:
+                except RuntimeError as e:
                     logger.exception(u'执行%s%s %r' % (cmd, ' '.join(args), e))
                     if 'device not found' in str(e):
                         self.wait_for_device(args[0], retry_count=1, timeout=300)
@@ -260,7 +265,7 @@ class ADBClient(object):
 
             if ret == None: raise TimeoutError(u'Run cmd %s %s failed' % (cmd, ' '.join(args)))
 
-            if isinstance(ret, basestring):
+            if isinstance(ret, (six.string_types, six.binary_type)):
                 return ret, ''
             else:
                 return ret
@@ -289,14 +294,14 @@ class ADBClient(object):
         '''检查返回状态
         '''
         stat = self._sock.recv(4)
-        if stat == "OKAY":
+        if stat == b"OKAY":
             return True
-        elif stat == "FAIL":
+        elif stat == b"FAIL":
             size = int(self._sock.recv(4), 16)
             val = self._sock.recv(size)
             self._sock.close()
             self._sock = None
-            raise AdbError(val)
+            raise AdbError(val.decode('utf8'))
         else:
             raise AdbError("Bad response: %r" % (stat,))
 
@@ -304,13 +309,13 @@ class ADBClient(object):
         data = "%04x%s" % (len(cmd), cmd)
         if not self._sock: self._connect()
         # logger.debug('send: %r' % data)
-        self._sock.send(data)
+        self._sock.send(data.encode('utf8'))
         return self._check_status()
 
     def _recv(self, size=None):
         '''从socket读取数据
         '''
-        result = ''
+        result = b''
         if size != None:
             while len(result) < size:
                 result += self._sock.recv(size - len(result))
@@ -328,7 +333,7 @@ class ADBClient(object):
         # logger.debug('recv: %r' % resp[:200])
         self._sock.close()
         self._sock = None
-        return resp
+        return resp.decode('utf8')
 
     def _transport(self, device_id):
         self._send_command('host:transport:%s' % device_id)
@@ -345,15 +350,17 @@ class ADBClient(object):
         cmd_line = 'shell:%s' % cmd
         self._transport(device_id)
         self._send_command(cmd_line)
-        return ADBPopen(self._sock, timeout=kwds['timeout']).communicate()
+        result = ADBPopen(self._sock, timeout=kwds['timeout']).communicate()
+        self._sock = None
+        return result
 
     def _sync_read_mode(self, remote_path):
         '''
         '''
-        data = 'STAT' + struct.pack('I', len(remote_path)) + remote_path
+        data = b'STAT' + struct.pack('I', len(remote_path)) + remote_path.encode('utf8')
         self._sock.send(data)
         result = self._sock.recv(16)
-        if result[:4] != 'STAT':
+        if result[:4] != b'STAT':
             raise AdbError('sync_read_mode error')
         mode, size, time = struct.unpack('III', result[4:])
         return mode, size, time
@@ -369,11 +376,11 @@ class ADBClient(object):
             self._sock.close()
             self._sock = None
             raise AdbError('remote object %r does not exist' % src_file)
-        data = 'RECV' + struct.pack('I', len(src_file)) + src_file
+        data = b'RECV' + struct.pack('I', len(src_file)) + src_file.encode('utf8')
         self._sock.send(data)
         f = open(dst_file, 'wb')
         data_size = 0
-        last_data = ''
+        last_data = b''
         while True:
             result = self._sock.recv(8)
             if len(result) != 8:
@@ -387,14 +394,13 @@ class ADBClient(object):
                 last_data = last_data[8:]
 
             psize = struct.unpack('I', result[4:])[0]  # 每个分包大小
-            # print psize
-            if result[:4] == 'DONE': break
-            elif result[:4] == 'FAIL':
+
+            if result[:4] == b'DONE': break
+            elif result[:4] == b'FAIL':
                 raise AdbError(self._sock.recv(psize))
-            elif result[:4] != 'DATA':
+            elif result[:4] != b'DATA':
                 raise AdbError('pull_file error')
 
-            # print fsize
             result = self._recv(psize - len(last_data))
             result = last_data + result
             if len(result) >= psize:
@@ -406,7 +412,7 @@ class ADBClient(object):
             data_size += len(result)
             
         f.close()
-        self._sock.send('QUIT' + struct.pack('I', 0))
+        self._sock.send(b'QUIT' + struct.pack('I', 0))
         time_cost = time.time() - time0
         self._sock.close()
         self._sock = None
@@ -421,42 +427,44 @@ class ADBClient(object):
         time0 = time.time()
         try:
             st = os.stat(src_file)
-        except WindowsError, e:
-            if e[0] == 2:
+        except OSError as e:
+            if e.errno == 2:
                 raise AdbError("cannot stat '%s': No such file or directory" % src_file)
             else: raise e
         self._transport(device_id)
         self._send_command('sync:')
         mode, fsize, ftime = self._sync_read_mode(dst_file)
-#         print mode
-#         print st.st_mode
-        s = '%s,%d' % (dst_file, st.st_mode)
-        data = 'SEND' + struct.pack('I', len(s)) + s
+        
+        s = b'%s,%d' % (dst_file.encode('utf8'), st.st_mode)
+        data = b'SEND' + struct.pack('I', len(s)) + s
         self._sock.send(data)
-        f = open(src_file, 'rb')
-        data = f.read(SYNC_DATA_MAX)
-        data_size = 0
-        while data:
-            # print 'send', len(data)
-            send_data = 'DATA' + struct.pack('I', len(data)) + data
-            self._sock.send(send_data)  
-            data_size += len(data)
-            data = f.read(SYNC_DATA_MAX)
-        f.close()
-        data = 'DONE' + struct.pack('I', st.st_mtime)
+        with open(src_file, 'rb') as fp:
+            data = fp.read(SYNC_DATA_MAX)
+            data_size = 0
+            while data:
+                send_data = b'DATA' + struct.pack('I', len(data)) + data
+                self._sock.send(send_data)  
+                data_size += len(data)
+                data = fp.read(SYNC_DATA_MAX)
+
+        data = b'DONE' + struct.pack('I', int(st.st_mtime))
         self._sock.send(data)
         result = self._sock.recv(8)
-        if result[:4] == 'OKAY':
+        if result[:4] == b'OKAY':
             self._sock.close()
             self._sock = None
             time_cost = time.time() - time0
-            return '%d KB/s (%d bytes in %fs)' % (int(data_size / 1000 / time_cost) if time_cost > 0 else 0, data_size, time_cost)
-        elif result[:4] == 'FAIL':
+            return '%d KB/s (%d bytes in %fs)' % (int(data_size / 1000.0 / time_cost) if time_cost > 0 else 0, data_size, time_cost)
+        elif result[:4] == b'FAIL':
             msg_len = struct.unpack('I', result[4:])[0]
             error_msg = self._sock.recv(msg_len)
+            self._sock.close()
+            self._sock = None
             raise AdbError(error_msg)
         else:
-            raise RuntimeError('unexpect data: %r' % result)
+            self._sock.close()
+            self._sock = None
+            raise RuntimeError('Unexpect data: %r' % result)
         
     def install(self, device_id, apk_path, args='', **kwds):
         '''adb install
@@ -467,24 +475,30 @@ class ADBClient(object):
         dst_path = '/data/local/tmp/%s' % apk_name
         self.push(device_id, apk_path, dst_path)
         cmdline = 'pm install ' + (args + ' ' if args else '') + dst_path
-        return self.shell(device_id, cmdline, **kwds)
+        result = self.shell(device_id, cmdline, **kwds)
+        return result[0].decode('utf8')
 
     def uninstall(self, device_id, package_name, **kwds):
         '''adb uninstall
         '''
         cmd = 'pm uninstall %s' % package_name
-        return self.shell(device_id, cmd, **kwds)
+        result = self.shell(device_id, cmd, **kwds)
+        return result[0].decode('utf8')
 
     def forward(self, device_id, local, remote):
         '''adb forward
         '''
         self._send_command('host-serial:%s:forward:%s;%s' % (device_id, local, remote))
+        self._sock.close()
+        self._sock = None
         return ''
     
-    def remove_forward(self, local):
+    def remove_forward(self, device_id, local):
         '''adb forward --remove
         '''
-        self._send_command('host:killforward:%s' % (local))
+        self._send_command('host-serial:%s:killforward:%s' % (device_id, local))
+        self._sock.close()
+        self._sock = None
         return ''
     
     def create_tunnel(self, device_id, remote_addr):
@@ -494,11 +508,11 @@ class ADBClient(object):
         self._sock.settimeout(2)
         try:
             self._send_command(remote_addr)
-        except AdbError, e:
+        except AdbError as e:
             if 'closed' == e.args[0]:
                 return ''
             raise
-        except socket.timeout, e:
+        except socket.timeout as e:
             logger.warn('create_tunnel timeout')
             return ''
         sock = self._sock
@@ -511,11 +525,17 @@ class ADBClient(object):
         return self.send_command('host-serial:%s:get-state' % (device_id))
     
     def connect(self, device_id):
-        '''连接TCP端口
+        '''连接设备端口
         '''
         result = self.send_command('host:connect:%s' % device_id)
         return 'connected to' in result
     
+    def disconnect(self, device_id):
+        '''断开设备连接
+        '''
+        result = self.send_command('host:disconnect:%s' % device_id)
+        return 'disconnected' in result
+        
     def reboot(self, device_id, **kwds):
         '''重启设备
         '''
@@ -523,7 +543,7 @@ class ADBClient(object):
         self._sock.settimeout(kwds['timeout'])
         try:
             self.send_command('reboot:')
-        except socket.error, e:
+        except socket.error as e:
             raise e
         except:
             pass
@@ -537,8 +557,10 @@ class ADBClient(object):
     
     def snapshot_screen(self, device_id):
         '''截屏
+        
         return: Image.Image
         '''
+        from PIL import Image
         self._transport(device_id)
         self._send_command('framebuffer:')
         
@@ -558,10 +580,10 @@ class ADBClient(object):
         alpha_length = struct.unpack_from('I', fb_desc, 48)[0]
 
         if version != 1:
-            raise AdbError("unsupported version of framebuffer: %s" % version)
+            raise AdbError("Unsupported version of framebuffer: %s" % version)
         # detect order
         util_map = { red_offset: 'R', blue_offset: 'B', green_offset: 'G'}
-        keys = util_map.keys()
+        keys = list(util_map.keys())
         keys.sort()
         raw_mode = ''.join([util_map[it] for it in keys])
         
@@ -569,13 +591,13 @@ class ADBClient(object):
         if alpha_length and alpha_offset:
             mode = 'RGBA'
             if bpp != 32:
-                raise AdbError("unsupported RGBA mode, bpp is %s" % bpp)
+                raise AdbError("Unsupported RGBA mode, bpp is %s" % bpp)
             raw_mode += 'A'
             
         elif alpha_offset:
             mode = 'RGBX'
             if bpp != 32:
-                raise AdbError("unsupported RGBX mode, bpp is %s" % bpp)
+                raise AdbError("Unsupported RGBX mode, bpp is %s" % bpp)
             raw_mode += 'X'
             
         else:
@@ -585,13 +607,13 @@ class ADBClient(object):
             elif bpp == 24:
                 pass
             else:
-                raise AdbError("unsupported RGB mode, bpp is %s" % bpp)
+                raise AdbError("Unsupported RGB mode, bpp is %s" % bpp)
 
-        data = ''
+        data = b''
         while len(data) < size:
             data += self._sock.recv(4096)
-
-        from PIL import Image
+        self._sock.close()
+        self._sock = None
         return Image.frombuffer(mode, (width, height), data, 'raw', raw_mode, 0, 1)
 
 if __name__ == '__main__':

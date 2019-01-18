@@ -16,6 +16,8 @@
 通用功能模块
 '''
 
+from __future__ import print_function
+import six
 import logging
 import os
 import sys
@@ -35,7 +37,7 @@ class Deprecated(object):
             frame = sys._getframe(1)
             code = frame.f_code
             file_name = os.path.split(code.co_filename)[-1]
-            print >> sys.stderr, 'method %s is deprecated, called in [%s:%s], pls use %s instead' % (func.__name__, file_name, code.co_name, self._new_func)
+            print('method %s is deprecated, called in [%s:%s], pls use %s instead' % (func.__name__, file_name, code.co_name, self._new_func), file=sys.stderr)
             return func(*args, **kwargs)
 
         return warp_func
@@ -101,7 +103,7 @@ class OutStream(object):
         return 'utf8'
 
     def write(self, s):
-        if not isinstance(s, unicode):
+        if six.PY2 and (not isinstance(s, unicode)):
             try:
                 s = s.decode('utf8')
             except UnicodeDecodeError:
@@ -127,7 +129,7 @@ def mkdir(dir_path):
     if os.path.exists(dir_path): return
     try:
         os.mkdir(dir_path)
-    except OSError, e:
+    except OSError as e:
         if e.args[0] == 183 or e.args[0] == 17:
             # 文件已经存在
             return
@@ -184,16 +186,17 @@ def get_default_encoding():
 
 
 def set_default_encoding(code='utf8'):
-    if sys.getdefaultencoding() == code: return
-    reload(sys)
-    sys.setdefaultencoding(code)
+    if six.PY2: 
+        if sys.getdefaultencoding() == code: return
+        reload(sys)
+        sys.setdefaultencoding(code)
 
 
 def get_file_md5(file_path):
     '''计算文件md5
     '''
     import hashlib
-    if not isinstance(file_path, unicode):
+    if six.PY2 and (not isinstance(file_path, unicode)):
         file_path = file_path.decode('utf8')
     if not os.path.exists(file_path):
         raise RuntimeError('文件：%s 不存在' % file_path)
@@ -230,14 +233,15 @@ class AndroidPackage(object):
 
     def _get_file(self):
         if not self._file:
-            import zipfile, StringIO
+            import zipfile
+            from io import BytesIO
             with open(self._package_path, 'rb') as f:
                 apk_data = f.read()
-                self._file = zipfile.ZipFile(StringIO.StringIO(apk_data), mode='r')
+                self._file = zipfile.ZipFile(BytesIO(apk_data), mode='r')
         return self._file
 
     def _get_manifest_xml(self):
-        from _axmlparser import AXMLPrinter
+        from qt4a.androiddriver._axmlparser import AXMLPrinter
         f = self._get_file()
         for i in f.namelist():
             if i == "AndroidManifest.xml":
@@ -484,7 +488,7 @@ class ClassMethod(object):
         return self
 
     def __call__(self, *args, **kws):
-        # print self._method.__name__
+        # print (self._method.__name__)
         return self._method(self._cls, *args, **kws)
 
 
@@ -542,14 +546,16 @@ def get_root_path():
     '''
     if hasattr(sys, "frozen"):
         # py2exe打包的
-        return os.path.join(os.path.dirname(unicode(sys.executable, sys.getfilesystemencoding())), 'library.zip')
-    return os.path.dirname(unicode(eval('__file__'), sys.getfilesystemencoding()))
+        python_path = unicode(sys.executable, sys.getfilesystemencoding()) if six.PY2 else sys.executable
+        return os.path.join(os.path.dirname(python_path), 'library.zip')
+    file_path = unicode(eval('__file__'), sys.getfilesystemencoding()) if six.PY2 else eval('__file__')
+    return os.path.dirname(file_path)
 
 
 def is_mutibyte_string(data):
     '''判断是否是多字节字符串
     '''
-    if not isinstance(data, unicode):
+    if six.PY2 and (not isinstance(data, unicode)):
         data = data.decode('utf8')
     for c in data:
         if ord(c) > 256: return True
@@ -568,7 +574,7 @@ def get_string_hashcode(s):
      * the string, and <code>^</code> indicates exponentiation.
      * (The hash value of the empty string is zero.)
     '''
-    if not isinstance(s, unicode):
+    if six.PY2 and (not isinstance(s, unicode)):
         s = s.decode('utf8')
     ret = 0
     max_val = 0x80000000
@@ -673,6 +679,34 @@ def time_clock():
         return time.clock()
     else:
         return time.time()
+    
+def is_int(num):
+    '''判断整数num是否可以用32位表示
+    '''
+    return (num <= 2147483647 and num >= -2147483648)
+
+def general_encode(s):
+    '''字符串通用编码处理
+    python2 => utf8
+    python3 => unicode
+    '''
+    if six.PY2 and isinstance(s, (unicode,)):
+        s = s.encode('utf8')
+    elif six.PY3 and isinstance(s, (bytes,)):
+        s = s.decode('utf8')
+    return s
+
+def encode_wrap(func):
+    '''处理函数参数编码
+    '''
+    def wrap_func(*args, **kwargs):
+        args = list(args)
+        for i, it in enumerate(args):
+            args[i] = general_encode(it)
+        for key in kwargs:
+            kwargs[key] = general_encode(kwargs[key])
+        return func(*args, **kwargs)
+    return wrap_func
 
 
 if __name__ == '__main__':

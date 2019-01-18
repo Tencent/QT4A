@@ -2044,7 +2044,7 @@ window.install();
 try:
     from qt4w.webdriver.webkitwebdriver import WebkitWebDriver
     from qt4w.util import JavaScriptError
-    from util import AndroidSpyError
+    from qt4a.androiddriver.util import AndroidSpyError
     class AndroidWebDriver(WebkitWebDriver):
         '''Android中的WebDriver
         '''
@@ -2063,7 +2063,7 @@ try:
             '''
             try:
                 return super(AndroidWebDriver, self).eval_script(frame_xpaths, script)
-            except JavaScriptError, e:
+            except JavaScriptError as e:
                 err_msg = e.message
                 err_msg = err_msg.split('\n')[0]
                 if 'INVALID_EXPRESSION_ERR: DOM XPath Exception 51' in err_msg:
@@ -2078,7 +2078,7 @@ try:
                     return self.eval_script(frame_xpaths, script)
                 else:
                     raise e
-            except AndroidSpyError, e:
+            except AndroidSpyError as e:
                 if 'java.lang.RuntimeException: Result Error:' in e.message:
                     # 一般是页面未加载完成，等待重试
                     time.sleep(2)
