@@ -16,10 +16,10 @@
 '''AI控件库
 '''
 
-import cStringIO
+from io import BytesIO
 import os
 import tempfile
-from andrcontrols import Window, View
+from qt4a.andrcontrols import Window, View
 
 class MtWindow(Window):
     # TODO: to be deleted
@@ -27,7 +27,7 @@ class MtWindow(Window):
     
 try:
     from metislib.controls import *
-except ImportError, e:
+except ImportError as e:
     class MtControl(View):
         pass
 else:
@@ -71,7 +71,7 @@ else:
             with open(temp_path, 'rb') as fp:
                 image_data = fp.read()
             os.remove(temp_path)
-            image = Image.open(cStringIO.StringIO(image_data))
+            image = Image.open(BytesIO(image_data))
             if clip:
                 x, y, w, h = self.rect
                 image = image.crop((x, y, x + w, y + h))

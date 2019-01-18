@@ -56,7 +56,7 @@ def install_qt4a_driver(args):
     print('Install QT4A driver to %s completely.' % device_id)
 
 def repack_apk(args):
-    from apktool.repack import repack_apk
+    from qt4a.apktool.repack import repack_apk
     print('Repacking apk %s...' % (' '.join(args.path)))
     outpath = repack_apk(args.path, args.debuggable)
     print('Repack apk completely.\nOutput apk path is: ')

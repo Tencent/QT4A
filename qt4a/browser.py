@@ -18,10 +18,11 @@
 
 import re
 import time
-from androidapp import AndroidApp
-from andrcontrols import Window, TextView, WebView
+
+from qt4a.andrcontrols import Window, TextView, WebView
+from qt4a.androidapp import AndroidApp
 from qt4a.device import Device
-from qpath import QPath
+from qt4a.qpath import QPath
 from qt4w.browser import IBrowser
 from qt4w.webcontrols import WebPage
 

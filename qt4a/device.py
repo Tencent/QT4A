@@ -17,6 +17,7 @@
 Android 设备模块
 '''
 
+import six
 import os
 import re
 import socket
@@ -25,15 +26,15 @@ import time
 import tempfile
 import threading
 import zipfile
-import cStringIO
+from io import BytesIO
 from pkg_resources import iter_entry_points
 
 from testbase import logger as qta_logger
 from testbase.conf import settings
 from testbase.resource import LocalResourceHandler, LocalResourceManagerBackend
-from androiddriver.adb import ADB, LocalADBBackend
-from androiddriver.util import Singleton, logger, static_property, get_file_md5
-from androiddriver.devicedriver import DeviceDriver
+from qt4a.androiddriver.adb import ADB, LocalADBBackend
+from qt4a.androiddriver.util import Singleton, logger, static_property, get_file_md5
+from qt4a.androiddriver.devicedriver import DeviceDriver
 
 class AndroidDeviceResourceHandler(LocalResourceHandler):
     
@@ -128,7 +129,7 @@ class DeviceProviderManager(Singleton):
         '''
         for provider in self._device_providers:
             device = provider.connect_device(dev_prop)
-            print device
+            print (device)
             if device: 
                 self._acquired_devices[device.device_id] = provider
                 return device
@@ -147,9 +148,9 @@ class Device(object):
     device_list = [] 
 
     def __init__(self, id_or_adb_backend=None):
-        '''获取一个Android设备，获取成功后则独占该设备。如果未安装qt4a的驱动，则自动安装。
+        '''获取一个Android设备，获取成功后则独占该设备。
         
-        :param device_id: 获取制定设备id的Android设备。如果为空则任意获取一台空闲设备。
+        :param device_id: 获取制定设备id的Android设备。
         '''
         self._device = None
         if isinstance(id_or_adb_backend, str):
@@ -271,7 +272,7 @@ class Device(object):
         '''
         try:
             return self.adb.get_device_imei()
-        except RuntimeError, e:
+        except RuntimeError as e:
             logger.warn('Read device imei by dumpsys failed: %s' % e)
             return self._device_driver.get_device_imei()
 
@@ -427,7 +428,7 @@ class Device(object):
         try:
             ret = self.adb.pull_file(src_path, dst_path)
             if 'does not exist' not in ret: return
-        except RuntimeError, e:
+        except RuntimeError as e:
             logger.warn('pull file failed: %r' % e)
             if src_path.startswith('/data/local/tmp/'): raise e
         _, files = self.adb.list_dir(src_path)
@@ -546,7 +547,7 @@ class Device(object):
         :type  quality:     int
         '''
         import shutil
-        from androiddriver.device_driver import qt4a_path
+        from qt4a.androiddriver.device_driver import qt4a_path
         to_video = True
         if os.path.exists(save_path) and os.path.isdir(save_path): to_video = False
         
@@ -709,7 +710,7 @@ class Device(object):
         :param num:  返回满足条件的日志条数
         :type num:   int
         '''
-        from androiddriver.util import logger
+        from qt4a.androiddriver.util import logger
         pat = re.compile(r'^\[(.+)\(\d+\)\]\s+\[.+\]\s+\w/(.+)\(\s*\d+\):\s+(.+)$')
         log_pat = re.compile(pattern)
         log_list = self.adb.get_log(False)
@@ -774,7 +775,7 @@ class Device(object):
         :type  text: string
         '''
         max_send_size = 960
-        if not isinstance(text, unicode): text = text.decode('utf8')
+        if six.PY2 and not isinstance(text, unicode): text = text.decode('utf8')
         text_en = ''
         i = 0
         while i < len(text):
@@ -872,7 +873,7 @@ class Device(object):
     def clear_camera_default_app(self):
         '''清除默认相机应用
         '''
-        from androiddriver.util import logger
+        from qt4a.androiddriver.util import logger
         if self.is_rooted():
             return self._device_driver.clear_default_app('android.media.action.IMAGE_CAPTURE')
         else:
@@ -919,9 +920,9 @@ class Device(object):
         '''
         if not hasattr(self, '_view_id_dict'):
             self._view_id_dict = {}  # 该操作较为耗时，必须要缓存
-        if not self._view_id_dict.has_key(package_name):
+        if not package_name in self._view_id_dict:
             self._view_id_dict[package_name] = {}
-        if self._view_id_dict[package_name].has_key(str_id):
+        if str_id in self._view_id_dict[package_name]:
             return self._view_id_dict[package_name][str_id]
         view_id = self._device_driver.get_view_id(package_name, str_id)
         self._view_id_dict[package_name][str_id] = view_id
@@ -956,8 +957,8 @@ class Device(object):
         '''向app分享图片
         '''
         def _copy_image(src_path):
-            from androiddriver.util import get_file_md5
-            if not isinstance(src_path, unicode): src_path = src_path.decode('utf8')
+            from qt4a.androiddriver.util import get_file_md5
+            if six.PY2 and not isinstance(src_path, unicode): src_path = src_path.decode('utf8')
             file_ext = os.path.splitext(src_path)[-1]
             dst_path = '/sdcard/dcim/%s%s' % (get_file_md5(src_path), file_ext)
             self.push_file(src_path, dst_path)
@@ -978,7 +979,7 @@ class Device(object):
         '''向app分享文件
         '''
         def _copy_file(src_path):
-            if not isinstance(src_path, unicode): src_path = src_path.decode('utf8')
+            if six.PY2 and not isinstance(src_path, unicode): src_path = src_path.decode('utf8')
             file_name = os.path.split(src_path)[-1]
             dst_path = '/data/local/tmp/%s' % (file_name)
             self.push_file(src_path, dst_path)
@@ -1000,7 +1001,7 @@ class Device(object):
         :param file_path: 音频文件路径
         :type  file_path: string
         '''
-        from androiddriver.util import get_file_md5
+        from qt4a.androiddriver.util import get_file_md5
         self.set_volume(volume)  # 先设置音量
         file_ext = os.path.splitext(file_path)[-1]
         dst_path = '/data/local/tmp/%s%s' % (get_file_md5(file_path), file_ext)
@@ -1197,7 +1198,7 @@ class Device(object):
                             logger.warn('screenshot socket closed')
                             return
                         data += buff
-                    except socket.error, e:
+                    except socket.error as e:
                         logger.warn('recv screenshot data error: %s' % e)
                         return
                 return data
@@ -1212,7 +1213,7 @@ class Device(object):
                     if data_len > 0:
                         data = recv_data(data_len)
                         assert(len(data) == data_len)
-                        fp = cStringIO.StringIO(data)
+                        fp = BytesIO(data)
                         image = Image.open(fp)
                         # image.verify()
                         w, h = image.size
@@ -1222,7 +1223,7 @@ class Device(object):
                             # 此时prev_image一定不为空
                             try:
                                 prev_image.paste(image, (left, top, left + width, top + height))
-                            except Exception, e:
+                            except Exception as e:
                                 err_msg = 'compose image [%s]%r failed: %s' % (data_len, (left, top, width, height), e)
                                 raise RuntimeError(err_msg)
                         else:
