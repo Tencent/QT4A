@@ -695,7 +695,7 @@ class ADB(object):
         '''获取安装包名
         '''
         import zipfile
-        from _axmlparser import AXMLPrinter
+        from ._axmlparser import AXMLPrinter
         package_name = ''
         zf = zipfile.ZipFile(apk_path, mode='r')
         for i in zf.namelist():
