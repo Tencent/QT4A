@@ -22,6 +22,11 @@ import argparse
 import os
 import sys
 import time
+
+try:
+    raw_input
+except:
+    raw_input = input
     
 def install_qt4a_driver(args):
     from qt4a.androiddriver.adb import ADB
