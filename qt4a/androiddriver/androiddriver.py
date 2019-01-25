@@ -794,7 +794,7 @@ class AndroidDriver(object):
                 else:
                     raise e
             else:
-                return result['Result']
+                return True
         logger.error('drag (%s, %s, %s, %s) failed' % (x1, y1, x2, y2))
         return False
         
