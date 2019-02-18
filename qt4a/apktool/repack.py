@@ -64,7 +64,7 @@ def jar2dex(jar_path, dex_path):
     dx_path = os.path.join(cur_path, 'tools', 'dx.jar')
     # cmdline = 'java -Xmx1024m -cp "%s" com.android.dx.command.Main --dex --force-jumbo --output="%s" "%s"' % (dx_path, dex_path, jar_path)
     memory = 1024
-    if os.path.getsize(jar_path) > 10000 * 1014: memory = 2048  # 此时必须用64位java
+    if os.path.getsize(jar_path) >= 8 * 1024 * 1024: memory = 2048  # 此时必须用64位java
     cmdline = ['java', '-Xmx%dm' % memory, '-cp', dx_path, 'com.android.dx.command.Main',
                '--dex', '--force-jumbo', '--output=%s' % dex_path, jar_path]
     logging.info(' '.join(cmdline))
