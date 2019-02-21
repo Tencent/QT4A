@@ -255,8 +255,6 @@ class AndroidApp(object):
                     if not current_activity:  # 黑屏
                         time.sleep(3)
                         return
-            else:
-                self.device.send_key(4)
         else:
             time0 = time.time()
             timeout = 10
