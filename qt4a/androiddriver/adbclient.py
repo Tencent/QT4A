@@ -25,7 +25,7 @@ import socket, select
 import struct
 import threading
 from io import BytesIO
-from qt4a.androiddriver.util import logger, TimeoutError
+from qt4a.androiddriver.util import logger, utf8_encode, TimeoutError
 
 SYNC_DATA_MAX = 64 * 1024
 
@@ -357,12 +357,13 @@ class ADBClient(object):
     def _sync_read_mode(self, remote_path):
         '''
         '''
-        data = b'STAT' + struct.pack('I', len(remote_path)) + remote_path.encode('utf8')
+        remote_path = utf8_encode(remote_path)
+        data = b'STAT' + struct.pack(b'I', len(remote_path)) + remote_path
         self._sock.send(data)
         result = self._sock.recv(16)
         if result[:4] != b'STAT':
             raise AdbError('sync_read_mode error')
-        mode, size, time = struct.unpack('III', result[4:])
+        mode, size, time = struct.unpack(b'III', result[4:])
         return mode, size, time
 
     def pull(self, device_id, src_file, dst_file):
@@ -376,7 +377,9 @@ class ADBClient(object):
             self._sock.close()
             self._sock = None
             raise AdbError('remote object %r does not exist' % src_file)
-        data = b'RECV' + struct.pack('I', len(src_file)) + src_file.encode('utf8')
+
+        src_file = utf8_encode(src_file)
+        data = b'RECV' + struct.pack(b'I', len(src_file)) + src_file
         self._sock.send(data)
         f = open(dst_file, 'wb')
         data_size = 0
@@ -393,7 +396,7 @@ class ADBClient(object):
                 result = last_data[:8]
                 last_data = last_data[8:]
 
-            psize = struct.unpack('I', result[4:])[0]  # 每个分包大小
+            psize = struct.unpack(b'I', result[4:])[0]  # 每个分包大小
 
             if result[:4] == b'DONE': break
             elif result[:4] == b'FAIL':
@@ -412,7 +415,7 @@ class ADBClient(object):
             data_size += len(result)
             
         f.close()
-        self._sock.send(b'QUIT' + struct.pack('I', 0))
+        self._sock.send(b'QUIT' + struct.pack(b'I', 0))
         time_cost = time.time() - time0
         self._sock.close()
         self._sock = None
@@ -433,21 +436,22 @@ class ADBClient(object):
             else: raise e
         self._transport(device_id)
         self._send_command('sync:')
+        dst_file = utf8_encode(dst_file)
         mode, fsize, ftime = self._sync_read_mode(dst_file)
         
-        s = b'%s,%d' % (dst_file.encode('utf8'), st.st_mode)
-        data = b'SEND' + struct.pack('I', len(s)) + s
+        s = b'%s,%d' % (dst_file, st.st_mode)
+        data = b'SEND' + struct.pack(b'I', len(s)) + s
         self._sock.send(data)
         with open(src_file, 'rb') as fp:
             data = fp.read(SYNC_DATA_MAX)
             data_size = 0
             while data:
-                send_data = b'DATA' + struct.pack('I', len(data)) + data
+                send_data = b'DATA' + struct.pack(b'I', len(data)) + data
                 self._sock.send(send_data)  
                 data_size += len(data)
                 data = fp.read(SYNC_DATA_MAX)
 
-        data = b'DONE' + struct.pack('I', int(st.st_mtime))
+        data = b'DONE' + struct.pack(b'I', int(st.st_mtime))
         self._sock.send(data)
         result = self._sock.recv(8)
         if result[:4] == b'OKAY':
@@ -456,7 +460,7 @@ class ADBClient(object):
             time_cost = time.time() - time0
             return '%d KB/s (%d bytes in %fs)' % (int(data_size / 1000.0 / time_cost) if time_cost > 0 else 0, data_size, time_cost)
         elif result[:4] == b'FAIL':
-            msg_len = struct.unpack('I', result[4:])[0]
+            msg_len = struct.unpack(b'I', result[4:])[0]
             error_msg = self._sock.recv(msg_len)
             self._sock.close()
             self._sock = None
