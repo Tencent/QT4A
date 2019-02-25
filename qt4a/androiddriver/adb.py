@@ -260,9 +260,7 @@ class ADB(object):
             try:
                 result = self._backend.run_adb_cmd(cmd, *args, sync=sync, timeout=timeout, **kwargs)
             except Exception as e:
-                import traceback
-                traceback.print_exc()
-                logger.warn('exec adb %s failed: %s' % (cmd, e))
+                logger.exception('Exec adb %s failed: %s' % (cmd, e))
                 continue
                 
             if not isinstance(result, tuple): return result
