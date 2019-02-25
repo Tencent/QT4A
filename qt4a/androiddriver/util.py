@@ -696,6 +696,13 @@ def general_encode(s):
         s = s.decode('utf8')
     return s
 
+def utf8_encode(s):
+    '''将字符串转换为utf8编码
+    '''
+    if not isinstance(s, bytes):
+        s = s.encode('utf8')
+    return s
+    
 def encode_wrap(func):
     '''处理函数参数编码
     '''
