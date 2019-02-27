@@ -24,9 +24,9 @@ import tempfile
 import threading
 import time
 
-from qt4a.androiddriver.clientsocket import AndroidSpyClient, DirectAndroidSpyClient
-from  qt4a.androiddriver.devicedriver import DeviceDriver
-from  qt4a.androiddriver.util import logger, SocketError, AndroidSpyError, ControlExpiredError, ProcessExitError, Mutex, extract_from_zipfile
+from qt4a.androiddriver.clientsocket import DirectAndroidSpyClient
+from qt4a.androiddriver.devicedriver import DeviceDriver
+from qt4a.androiddriver.util import logger, SocketError, AndroidSpyError, ControlExpiredError, ProcessExitError, Mutex, extract_from_zipfile
 
 class EnumCommand(object):
     '''所有支持的命令字
