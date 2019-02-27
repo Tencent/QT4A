@@ -22,7 +22,7 @@ import os
 import time
 import six
 from qt4a.androiddriver.adb import ADB
-from qt4a.androiddriver.clientsocket import AndroidSpyClient
+from qt4a.androiddriver.clientsocket import DirectAndroidSpyClient
 from qt4a.androiddriver.util import SocketError, TimeoutError, KeyCode, logger
 
 qt4a_path = '/data/local/tmp/qt4a'
@@ -312,10 +312,12 @@ class DeviceDriver(object):
             time.sleep(1)
         return False
 
-    def _create_client(self, addr, port):
+    def _create_client(self, server_name, server_type):
         '''创建Client实例
         '''
-        return AndroidSpyClient(port, addr=addr, enable_log=False, timeout=self._timeout)
+        sock = self._adb.create_tunnel(server_name, server_type)
+        if sock == None: return None
+        return DirectAndroidSpyClient(sock, False, timeout=360)
     
     def run_server(self, server_name=''):
         '''运行测试桩进程,创建服务端
@@ -328,10 +330,6 @@ class DeviceDriver(object):
         if not self._is_local_device: addr = self.adb.host_name
         if self._client: self._client.close()
         self._client = None
- 
-        time0 = time.time()
-        timeout = 20
-        kill_server = False
         
         server_type = 'localabstract'
         if self.adb.is_rooted() and self.adb.is_selinux_opened():
@@ -339,41 +337,15 @@ class DeviceDriver(object):
             server_name = str(self.service_port)
             server_type = 'tcp'
 
+        time0 = time.time()
+        timeout = 20
+        
         while time.time() - time0 < timeout:
-            if not kill_server and time.time() - time0 >= timeout // 2:
-                # server进程存在问题，强杀
-                self._kill_server()
-                if self._client: self._client.close()
-                self._client = None
-                kill_server = True
+            self._client = self._create_client(server_name, server_type)
+            if self._client: return self._client
             ret = self._run_server(server_name)
             logger.debug('[DeviceDriver] Server %s process created: %s' % (server_name, ret))
-            
-            while port < 65536:
-                self._client = self._create_client(addr, port)
-                port_is_opened = AndroidSpyClient.server_opened(port)
-                if not port_is_opened: 
-                    new_port = self.adb.forward(port, server_name, server_type)
-                    if new_port != port:
-                        self._client = self._create_client(addr, new_port)
-                        logger.info('[AndroidDevice] new port=%d' % new_port)
-                        port = new_port
-
-                try:
-                    hello_rsp = self.hello()
-                    if hello_rsp == None: 
-                        if port_is_opened:
-                            # 需要释放端口
-                            ret = self.adb.remove_forward(port)
-                            logger.info('[AndroidDevice] remove %d forward: %s' % (port, ret))
-                        break
-                except RuntimeError:
-                    port += 1
-                    logger.info('[AndroidDevice] new port is %d' % port)
-                    continue
-                
-                return self._client
-            
+            time.sleep(0.1)
         raise RuntimeError('连接系统测试桩超时')
     
     def _restart_server(self):
