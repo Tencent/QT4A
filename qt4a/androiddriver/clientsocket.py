@@ -17,6 +17,8 @@
 '''
 
 from __future__ import unicode_literals
+
+import json
 import six
 import socket
 import select
@@ -115,8 +117,11 @@ class TCPSocketClient(object):
 
         expect_len = int(expect_len, 16) + 1
         recv_buff = ''
+        max_utf8_length = 6
+
         while len(recv_buff) < expect_len:
             buff = self.recv(expect_len - len(recv_buff))
+
             if not buff:
                 logger.warn('Socket closed when recv rsp for %r' % data)
             
@@ -125,6 +130,18 @@ class TCPSocketClient(object):
                     recv_buff += buff.decode('utf8')
                     break
                 except UnicodeDecodeError:
+                    if len(buff) > max_utf8_length:
+                        for i in range(max_utf8_length):
+                            this_buff = buff[:i - max_utf8_length]
+                            try:
+                                recv_buff += this_buff.decode('utf8')
+                            except UnicodeDecodeError:
+                                pass
+                            else:
+                                buff = buff[i - max_utf8_length:]
+                                break
+                        else:
+                            raise RuntimeError('Invalid utf-8 bytes: %r' % buff)
                     buff += self.recv(1)
 
         return recv_buff
@@ -143,11 +160,9 @@ class AndroidSpyClient(TCPSocketClient):
         self._seq += 1
         return self._seq
 
-
     def send_command(self, cmd_type, **kwds):
+        '''send command
         '''
-        '''
-        import json
         packet = {}
         packet['Cmd'] = cmd_type
         packet['Seq'] = self.seq
@@ -163,6 +178,7 @@ class AndroidSpyClient(TCPSocketClient):
         delta = time1 - time0
         if self._enable_log and delta >= 0.05: logger.info('send wait %s S' % delta)
         if self._enable_log: logger.debug('send: %s' % (data[:512].strip()))
+
         time0 = time_clock()
         try:
             result = self.send(data)
@@ -172,18 +188,20 @@ class AndroidSpyClient(TCPSocketClient):
             result = None
         self._lock.release()  # 解锁
         if not result: return None
+
         time1 = time_clock()
         try:
             rsp = json.loads(result)
+        except:
+            logger.error('json error: %r' % (result))
+            raise
+        else:
             if self._enable_log: 
                 delta = int(1000 * (time1 - time0))
                 if 'HandleTime' in rsp: delta -= rsp['HandleTime']
                 logger.debug('recv: [%d]%s\n' % (delta, result[:512].strip()))
             return rsp
-        except Exception as e:
-            logger.error('parse json (%r)error: %s' % (result, e))
-            raise e
-
+        
     def hello(self):
         return self.send_command('Hello')
 
