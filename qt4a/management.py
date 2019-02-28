@@ -63,10 +63,55 @@ def install_qt4a_driver(args):
     copy_android_driver(device_id, args.force)
     print('Install QT4A driver to %s completely.' % device_id)
 
+
+def qt4a_repack_apk(apk_path_or_list, debuggable=True):
+    '''重打包apk
+    
+    :param apk_path_or_list: apk路径或apk路径列表
+    :type  apk_path_or_list: string/list
+    :param debuggable: 重打包后的apk是否是调试版本：
+                           True - 是
+                           False - 否
+                           None - 与原apk保持一致
+    :type debuggable:  bool/None
+    '''
+    from qt4a.apktool import repack
+    cur_path = os.path.dirname(os.path.abspath(__file__))
+    activity_list = [{
+        'name': 'com.test.androidspy.inject.CmdExecuteActivity',
+        'exported': True,
+        'process': 'qt4a_cmd'
+    }]
+
+    # 添加QT4A测试桩文件
+    file_path_list = []
+    file_list = ['AndroidSpy.jar',
+                'arm64-v8a/libdexloader.so',
+                'arm64-v8a/libdexloader64.so',
+                'arm64-v8a/libandroidhook.so',
+                'armeabi/libdexloader.so',
+                'armeabi/libandroidhook.so',
+                'armeabi-v7a/libdexloader.so',
+                'armeabi-v7a/libandroidhook.so',
+                'x86/libdexloader.so',
+                'x86/libandroidhook.so'
+                ]
+    tools_path = os.path.join(cur_path, 'androiddriver', 'tools')
+    for it in file_list:
+        file_path = os.path.join(tools_path, it)
+        file_path_list.append((file_path, 'assets/qt4a/%s' % it))
+
+    return repack.repack_apk(apk_path_or_list, 
+        'com.test.androidspy.inject.DexLoaderContentProvider',
+        os.path.join(cur_path, 'apktool', 'tools', 'dexloader.dex'),
+        activity_list,
+        file_path_list,
+        debuggable
+        )
+
 def repack_apk(args):
-    from qt4a.apktool.repack import repack_apk
     print('Repacking apk %s...' % (' '.join(args.path)))
-    outpath = repack_apk(args.path, args.debuggable)
+    outpath = qt4a_repack_apk(args.path, args.debuggable)
     print('Repack apk completely.\nOutput apk path is: ')
     if isinstance(outpath, list):
         for it in outpath:

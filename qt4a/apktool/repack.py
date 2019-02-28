@@ -25,6 +25,16 @@ import tempfile
 from qt4a.apktool.apkfile import APKFile
 from qt4a.apktool.manifest import AndroidManifest
 
+class MergeDexError(RuntimeError):
+    '''合并dex失败错误
+    '''
+    pass
+
+class TooManyMethodsError(MergeDexError):
+    '''方法数超标
+    '''
+    pass
+
 def get_apk_signature(rsa_file_path):
     '''获取应用签名
     '''
@@ -99,8 +109,11 @@ def merge_dex(dst_dex, src_dexs):
             logging.warn('change dex to jumbo mode')
             rebuild_dex_with_jumbo(src_dexs[0])
             return merge_dex(dst_dex, src_dexs)
-        raise RuntimeError('merge dex failed: %s' % result[1])
-    
+        elif b'DexIndexOverflowException' in result[1]:
+            raise TooManyMethodsError('Merge dex failed: %s' % result[1])
+        else:
+            raise MergeDexError('Merge dex failed: %s' % result[1])
+
 def resign_apk(apk_path):
     '''重签名应用
     '''
@@ -119,18 +132,9 @@ def resign_apk(apk_path):
     if err: logging.warn('jarsigner: ' + err)
     return save_path
 
-def repack_apk(apk_path_or_list, debuggable=True):
-    '''重打包apk
-    
-    :param apk_path_or_list: apk路径或apk路径列表
-    :type  apk_path_or_list: string/list
-    :param debuggable: 重打包后的apk是否是调试版本：
-                           True - 是
-                           False - 否
-                           None - 与原apk保持一致
-    :type debuggable:  bool/None
+def repack_apk(apk_path_or_list, provider_name, merge_dex_path, activity_list=None, res_file_list=None, debuggable=None):
     '''
-    cur_path = os.path.dirname(os.path.abspath(__file__))
+    '''
     if not isinstance(apk_path_or_list, list):
         apk_path_or_list = [apk_path_or_list]
     elif len(apk_path_or_list) == 0:
@@ -144,40 +148,56 @@ def repack_apk(apk_path_or_list, debuggable=True):
         manifest = AndroidManifest(apk_file)
         if debuggable != None: manifest.debuggable = debuggable  # 修改debuggable属性
         process_list = manifest.get_process_list()
-        provider_name = 'com.test.androidspy.inject.DexLoaderContentProvider'
         authorities = manifest.package_name + '.authorities'
+        print('Add provider %s' % provider_name)
         manifest.add_provider(provider_name, authorities)  # 主进程
-        manifest.add_activity('com.test.androidspy.inject.CmdExecuteActivity', "true", ':qt4a_cmd')
         for i, process in enumerate(process_list):
-            manifest.add_provider(provider_name + '$InnerClass' + str(i + 1), authorities + str(i), process)
-        manifest.save()
+            sub_provider_name = provider_name + '$InnerClass' + str(i + 1)
+            print('Add provider %s in process %s' % (sub_provider_name, process))
+            manifest.add_provider(sub_provider_name, authorities + str(i), process)
+
+        if activity_list:
+            for activity in activity_list:
+                print('Add activity %s' % activity['name'])
+                manifest.add_activity(activity['name'], activity['exported'], activity['process'])
             
         # 合并dex文件
-        dexloader_path = os.path.join(cur_path, 'tools', 'dexloader.dex')
+        print('Merge dex %s' % merge_dex_path)
         classes_dex_path = tempfile.mktemp('.dex')
-        apk_file.extract_file('classes.dex', classes_dex_path)  
-        merge_dex(classes_dex_path, [classes_dex_path, dexloader_path])
-        with open(classes_dex_path, 'rb') as f:
-            apk_file.add_file('classes.dex', f.read())
+
+        dex_index = 1
+        while True:
+            dex_file = 'classes%s.dex' % (dex_index if dex_index > 1 else '')
+            if not apk_file.get_file(dex_file):
+                raise MergeDexError('Merge dex failed, all classes.dex have been tried')
+
+            if os.path.exists(classes_dex_path):
+                os.remove(classes_dex_path)
+            apk_file.extract_file(dex_file, classes_dex_path)
+            try:
+                merge_dex(classes_dex_path, [classes_dex_path, merge_dex_path])
+            except TooManyMethodsError:
+                print('Merge dex into %s failed due to methods number' % dex_file)
+                dex_index += 1
+            else:
+                print('Merge dex into %s success' % dex_file)
+                with open(classes_dex_path, 'rb') as f:
+                    apk_file.add_file(dex_file, f.read())
+                break
         
-        # 添加QT4A测试桩文件
-        file_list = ['AndroidSpy.jar',
-                     'arm64-v8a/libdexloader.so',
-                     'arm64-v8a/libdexloader64.so',
-                     'arm64-v8a/libandroidhook.so',
-                     'armeabi/libdexloader.so',
-                     'armeabi/libandroidhook.so',
-                     'armeabi-v7a/libdexloader.so',
-                     'armeabi-v7a/libandroidhook.so',
-                     'x86/libdexloader.so',
-                     'x86/libandroidhook.so'
-                     ]
-        tools_path = os.path.join(os.path.dirname(cur_path), 'androiddriver', 'tools')
-        for it in file_list:
-            file_path = os.path.join(tools_path, it)
-            with open(file_path, 'rb') as f:
-                data = f.read()
-                apk_file.add_file('assets/qt4a/%s' % it, data)
+        if dex_index > 1:
+            # 合并进非主dex只支持5.0以上系统
+            print('WARNING: APK can only be installed in android above 5.0')
+            manifest.min_sdk_version = 21
+
+        manifest.save()
+
+        if res_file_list:
+            for src_path, dst_path in res_file_list:
+                with open(src_path, 'rb') as f:
+                    print('Copy file %s => %s' % (src_path, dst_path))
+                    data = f.read()
+                    apk_file.add_file(dst_path, data)
             
         for it in apk_file.list_dir('META-INF'):
             if it.lower().endswith('.rsa'):
@@ -198,6 +218,7 @@ def repack_apk(apk_path_or_list, debuggable=True):
     out_apk_list = []
     
     # 写入原始签名信息
+    print('Write original signatures: %s' % json.dumps(signature_dict))
     temp_dir = tempfile.mkdtemp('-repack')
     for i, apk_file in enumerate(apk_file_list):  
         apk_file.add_file('assets/qt4a_package_signatures.txt', json.dumps(signature_dict))
@@ -209,6 +230,8 @@ def repack_apk(apk_path_or_list, debuggable=True):
         out_apk_list.append(new_path)
     if len(out_apk_list) == 1: return out_apk_list[0]
     else: return out_apk_list
-    
+
+
+
 if __name__ == '__main__': 
     pass
