@@ -64,6 +64,12 @@ class AndroidManifest(object):
         '''
         return int(self._dom.getElementsByTagName('uses-sdk')[0].getAttribute('android:minSdkVersion'))
     
+    @min_sdk_version.setter
+    def  min_sdk_version(self, version):
+        '''设置最低SDK版本
+        '''
+        self._dom.getElementsByTagName('uses-sdk')[0].setAttribute('android:minSdkVersion', str(version))
+
     @property
     def target_sdk_version(self):
         '''目标SDK版本
@@ -121,10 +127,10 @@ class AndroidManifest(object):
         if process: elem.setAttribute('android:process', process)
         self._dom.getElementsByTagName('application')[0].appendChild(elem)
     
-    def add_activity(self, activity, exported="true", process=None):
+    def add_activity(self, activity, exported=True, process=None):
         elem = self._dom.createElement('activity')
         elem.setAttribute('android:name', activity)
-        elem.setAttribute('android:exported', exported)
+        elem.setAttribute('android:exported', 'true' if exported else 'false')
         if process: elem.setAttribute('android:process', process)
         self._dom.getElementsByTagName('application')[0].appendChild(elem)
         
