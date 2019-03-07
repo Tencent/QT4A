@@ -86,14 +86,26 @@ class AndroidManifest(object):
     def debuggable(self):
         '''是否是调试版本
         '''
-        return self._dom.getElementsByTagName('application')[0].getAttribute('android:debuggable')
+        return self._dom.getElementsByTagName('application')[0].getAttribute('android:debuggable') == 'true'
     
     @debuggable.setter
     def debuggable(self, value):
         '''设置调试标志位
         '''
         self._dom.getElementsByTagName('application')[0].setAttribute('android:debuggable', 'true' if value else 'false')
-        
+    
+    @property
+    def vm_safe_mode(self):
+        '''虚拟机安全模式
+        '''
+        return self._dom.getElementsByTagName('application')[0].getAttribute('android:vmSafeMode') == 'true'
+
+    @vm_safe_mode.setter
+    def vm_safe_mode(self, mode):
+        '''设置虚拟机安全模式
+        '''
+        self._dom.getElementsByTagName('application')[0].setAttribute('android:vmSafeMode', 'true' if mode else 'false')
+
     @property
     def start_activity(self):
         '''启动Activity
@@ -131,7 +143,9 @@ class AndroidManifest(object):
         elem = self._dom.createElement('activity')
         elem.setAttribute('android:name', activity)
         elem.setAttribute('android:exported', 'true' if exported else 'false')
-        if process: elem.setAttribute('android:process', process)
+        if process: 
+            if not process.startswith(':'): process = ':' + process
+            elem.setAttribute('android:process', process)
         self._dom.getElementsByTagName('application')[0].appendChild(elem)
         
     def save(self):

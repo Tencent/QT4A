@@ -132,7 +132,7 @@ def resign_apk(apk_path):
     if err: logging.warn('jarsigner: ' + err)
     return save_path
 
-def repack_apk(apk_path_or_list, provider_name, merge_dex_path, activity_list=None, res_file_list=None, debuggable=None):
+def repack_apk(apk_path_or_list, provider_name, merge_dex_path, activity_list=None, res_file_list=None, debuggable=None, vm_safe_mode=None):
     '''
     '''
     if not isinstance(apk_path_or_list, list):
@@ -147,6 +147,7 @@ def repack_apk(apk_path_or_list, provider_name, merge_dex_path, activity_list=No
         apk_file_list.append(apk_file)
         manifest = AndroidManifest(apk_file)
         if debuggable != None: manifest.debuggable = debuggable  # 修改debuggable属性
+        if vm_safe_mode != None: manifest.vm_safe_mode = vm_safe_mode # 修改安全模式
         process_list = manifest.get_process_list()
         authorities = manifest.package_name + '.authorities'
         print('Add provider %s' % provider_name)
