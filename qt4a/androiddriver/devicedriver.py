@@ -23,7 +23,7 @@ import time
 import six
 from qt4a.androiddriver.adb import ADB
 from qt4a.androiddriver.clientsocket import DirectAndroidSpyClient
-from qt4a.androiddriver.util import SocketError, TimeoutError, KeyCode, logger
+from qt4a.androiddriver.util import SocketError, TimeoutError, QT4ADriverNotInstalled, KeyCode, logger
 
 qt4a_path = '/data/local/tmp/qt4a'
 
@@ -66,7 +66,10 @@ class DeviceDriver(object):
         :type  cmd:  string
         '''
         args = [('"%s"' % (it.replace('"', r'\"') if isinstance(it, str) else it)) for it in args]
-        return self.adb.run_shell_cmd('sh %s/SpyHelper.sh %s %s' % (qt4a_path, cmd, ' '.join(args)), **kwargs)
+        result = self.adb.run_shell_cmd('sh %s/SpyHelper.sh %s %s' % (qt4a_path, cmd, ' '.join(args)), **kwargs)
+        if 'No such file or directory' in result:
+            raise QT4ADriverNotInstalled('Please install QT4A driver first')
+        return result
 
     def get_language(self):
         '''获取系统语言

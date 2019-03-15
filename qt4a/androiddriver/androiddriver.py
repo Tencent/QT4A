@@ -26,7 +26,7 @@ import time
 
 from qt4a.androiddriver.clientsocket import DirectAndroidSpyClient
 from qt4a.androiddriver.devicedriver import DeviceDriver
-from qt4a.androiddriver.util import logger, SocketError, AndroidSpyError, ControlExpiredError, ProcessExitError, Mutex, extract_from_zipfile
+from qt4a.androiddriver.util import logger, SocketError, AndroidSpyError, ControlExpiredError, ProcessExitError, QT4ADriverNotInstalled, Mutex, extract_from_zipfile
 
 class EnumCommand(object):
     '''所有支持的命令字
@@ -355,6 +355,8 @@ class AndroidDriver(object):
                 else:
                     ret = self._adb.run_as(self._process_name, cmdline, timeout=120, retry_count=1)
                 logger.debug('inject result: %s' % ret)
+                if 'not found' in ret:
+                    raise QT4ADriverNotInstalled('QT4A driver damaged, please reinstall QT4A driver')
                 if 'Inject Success' in ret: break
                 elif 'Operation not permitted' in ret:
                     # 可能是进程处于Trace状态
@@ -371,7 +373,8 @@ class AndroidDriver(object):
                 
         except RuntimeError as e:
             logger.exception('%s\n%s' % (e, self._adb.run_shell_cmd('ps')))
-            logger.info(self._adb.dump_stack(self._process_name))
+            if self._adb.is_rooted():
+                logger.info(self._adb.dump_stack(self._process_name))
             raise e
         timeout = 10
         time0 = time.time()
