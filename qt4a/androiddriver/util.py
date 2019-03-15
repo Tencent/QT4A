@@ -91,6 +91,12 @@ class PermissionError(RuntimeError):
     pass
 
 
+class QT4ADriverNotInstalled(Exception):
+    '''QT4A驱动错误
+    '''
+    pass
+
+
 class OutStream(object):
     '''重载输出流，以便在cmd中显示中文
     '''
