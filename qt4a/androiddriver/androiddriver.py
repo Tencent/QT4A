@@ -839,10 +839,13 @@ class AndroidDriver(object):
         result = self.send_command(EnumCommand.CmdGetObjectFieldValue, Control=control, FieldName=field_name)
         return result['Result']
     
-    def call_static_method(self, class_name, method_name, ret_type='', *args):
+    def call_static_method(self, class_name, method_name, control=None, ret_type='', *args):
         '''调用静态方法
         '''
-        result = self.send_command(EnumCommand.CmdCallStaticMethod, ClassName=class_name, Method=method_name, RetType=ret_type, Args=args)
+        kwargs = {}
+        if control:
+            kwargs['Control'] = control
+        result = self.send_command(EnumCommand.CmdCallStaticMethod, ClassName=class_name, Method=method_name, RetType=ret_type, Args=args, **kwargs)
         return result['Result']
         
     def call_object_method(self, control, inner_obj, method_name, ret_type='', *args):
