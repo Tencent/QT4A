@@ -567,8 +567,11 @@ class ADB(object):
                 import datetime
                 if not hasattr(self, '_year'):
                     self._year = datetime.date.today().year
-                self.insert_logcat('%s(%d)' % (pid_dict.get(pid), pid), self._year, ret.group(1), ret.group(2), ret.group(5), ret.group(6), ret.group(4), ret.group(7))
-    
+                try:
+                    self.insert_logcat('%s(%d)' % (pid_dict.get(pid), pid), self._year, ret.group(1), ret.group(2), ret.group(5), ret.group(6), ret.group(4), ret.group(7))
+                except:
+                    logger.exception('Insert logcat failed: %r' % log)
+
     @static_result
     def get_root_state(self):
         '''获取Root状态
