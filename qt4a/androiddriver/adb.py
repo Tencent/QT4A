@@ -481,7 +481,13 @@ class ADB(object):
         zygote_pid = 0  # zygote进程ID
 
         while self._logcat_running:
-            log = self._log_pipe.stdout.readline().decode('utf8').strip()
+            log = self._log_pipe.stdout.readline()
+            try:
+                log = log.decode('utf8').strip()
+            except UnicodeDecodeError:
+                logger.warn('Invalid logcat encoding: %r' % log)
+                continue
+
             if not log:
                 if self._log_pipe.poll() != None:
                     logger.debug('logcat进程：%s 已退出' % self._log_pipe.pid)
