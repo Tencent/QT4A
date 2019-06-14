@@ -149,7 +149,7 @@ class AndroidTestBase(tc.TestCase):
             t = util.ThreadEx(target=self._record_screen_thread, args=(device,), name='Device Record Screen Thread')
             t.setDaemon(True)
             t.start()
-        
+        device.adb.start_logcat()
         return device
 
     def get_extra_fail_record(self):
