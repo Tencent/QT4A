@@ -1854,7 +1854,7 @@ class ChromiumWebView(WebkitWebView):
         self._pid = self._device.adb.get_pid(self._driver._process_name)
         self._service_name = 'webview_devtools_remote_%d' % self._pid
         chrome_master.set_logger(logger)
-        self._chrome_master = chrome_master.ChromeMaster(('localhost', 80), self.create_socket)  # 高版本Chromium内核必须要使用localhost的Host
+        self._chrome_master = chrome_master.ChromeMaster(('localhost', self._pid), self.create_socket)  # 高版本Chromium内核必须要使用localhost的Host
 
         if self._pid in self.__class__.debugger_instances and self.__class__.debugger_instances[self._pid]:
             self.__class__.debugger_instances[self._pid].close()
