@@ -73,6 +73,12 @@ class ControlExpiredError(AndroidSpyError):
     pass
 
 
+class ControlAmbiguousError(AndroidSpyError):
+    '''控件重复错误
+    '''
+    pass
+
+
 class InstallPackageFailedError(RuntimeError):
     '''应用安装失败错误
     '''
@@ -134,7 +140,7 @@ def mkdir(dir_path):
     '''
     if os.path.exists(dir_path): return
     try:
-        os.mkdir(dir_path)
+        os.makedirs(dir_path)
     except OSError as e:
         if e.args[0] == 183 or e.args[0] == 17:
             # 文件已经存在
