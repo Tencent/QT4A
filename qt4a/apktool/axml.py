@@ -428,7 +428,8 @@ class ResStringPoolChunk(ResStringPoolHeader):
         self.read_strings()
         
         if self._fp.tell() < self.size + 8:
-            assert(self._fp.read(2) == b'\x00\x00')  # styles
+            bytes_to_read = self.size + 8 - self._fp.tell()
+            assert(self._fp.read(bytes_to_read) == b'\x00' * bytes_to_read)  # styles
         
         total_size = self.total_header_size + 4 * self.string_count + 4 * self.style_count
         for s in self.string_list:
