@@ -1308,7 +1308,7 @@ class ADB(object):
             self.start_activity('%s/com.test.androidspy.inject.CmdExecuteActivity' % package_name, extra={'cmdline':cmdline, 'timeout':timeout}, wait=False)
         except Exception as e:
             if 'com.test.androidspy.inject.CmdExecuteActivity} does not exist' in e.args[0]:
-                raise RuntimeError('该命令需要重打包apk才能执行，请重打包apk并安装生成的apk包后重试')
+                raise RuntimeError('该命令需要对apk重打包才能执行，请使用`qt4a-manage repack-apk -p /path/to/apk`命令进行重打包并安装后重试！')
             raise
         cmd_argv_list = cmdline.split()
         if len(cmd_argv_list) > 1 and cmd_argv_list[0] == 'pm' and cmd_argv_list[1] == 'clear':
