@@ -642,7 +642,7 @@ class Device(object):
         :param timeout:        超时时间，超市时间到后，无论当前CPU使用率是多少，都会返回
         :type  timeout:        int
         '''
-        return self._device_driver.reboot(wait_cpu_low, min_boot_time, **kwds)
+        return self._device_driver.reboot(wait_cpu_low, usage=usage, duration=duration, timeout=timeout)
 
     def connect_wifi(self, wifi_name, wifi_pass=''):
         '''连接指定的Wifi
