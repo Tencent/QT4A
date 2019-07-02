@@ -415,11 +415,11 @@ class DeviceDriver(object):
         '''
         pattern = re.compile(r'^.+:\d+$')
         try:
-            ret = self.run_driver_cmd('reboot', True, retry_count=1, timeout=30)
+            ret = self.run_driver_cmd('reboot', root=self.adb.is_rooted(), retry_count=1, timeout=30)
             if ret == 'false': return
         except RuntimeError as e:
             logger.warn('reboot: %r' % e)
-            if pattern.match(self.device_id):
+            if pattern.match(self._device_id):
                 try:
                     self.adb.reboot(60)
                 except RuntimeError:
@@ -429,8 +429,8 @@ class DeviceDriver(object):
                 self.adb.reboot(0)  # 不能使用reboot shell命令，有些手机需要root权限才能执行
 
         time.sleep(10)  # 防止设备尚未关闭，一般重启不可能在10秒内完成
-        self.adb.wait_for_boot_complete()
-        self._adb = None  # 重启后部分属性可能发生变化,需要重新实例化
+        self._adb.wait_for_boot_complete()
+        # self._adb = None  # 重启后部分属性可能发生变化,需要重新实例化
 
         if wait_cpu_low == True:
             self.wait_for_cpu_usage_low(usage, duration, timeout)
@@ -447,7 +447,7 @@ class DeviceDriver(object):
         time0 = time.time()
         time1 = time0
         while time.time() - time0 < timeout:
-            cpu_usage = self.adb.get_cpu_usage()
+            cpu_usage = self._adb.get_cpu_usage()
             # print (cpu_usage)
             if cpu_usage > usage :
                 time1 = time.time()
