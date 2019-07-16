@@ -10,7 +10,10 @@
         <version>21</version>
 	<brand>HUAWEI</brand>
         <version>21</version>	    
-	    
+	<brand>Meizu</brand>
+        <version>21</version>
+	<brand>samsung</brand>
+	<version>21</version>
     </rule>	
 </enable_rules>
 
@@ -124,5 +127,15 @@
         <package>com.android.packageinstaller</package>
         <feature_text>.+是否允许.+</feature_text>
         <click_text>始终允许</click_text>
+    </rule>
+    <rule><!--魅族手机-->
+        <package>com.google.android.packageinstaller</package>
+        <feature_text>要允许.+</feature_text>
+        <click_text>允许</click_text>
+    </rule>
+    <rule><!--三星手机-->
+        <package>com.android.packageinstaller</package>
+        <feature_text>.+申请.+权限</feature_text>
+        <click_text>允许</click_text>
     </rule>
 </click_rules>
