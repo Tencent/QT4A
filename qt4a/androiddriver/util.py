@@ -727,6 +727,18 @@ def encode_wrap(func):
         return func(*args, **kwargs)
     return wrap_func
 
+def enforce_utf8_decode(s):
+    '''强制utf8解码，对于不合法的字符串，使用\x12的形式
+    '''
+    if not isinstance(s, bytes):
+        return s
+    try:
+        return s.decode('utf8')
+    except UnicodeDecodeError as e:
+        start = e.args[2]
+        end = e.args[3]
+        return enforce_utf8_decode(s[:start]) + repr(s[start: end])[1:-1] + enforce_utf8_decode(s[end:])
+
 
 if __name__ == '__main__':
     pass
