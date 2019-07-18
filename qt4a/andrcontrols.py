@@ -1803,7 +1803,8 @@ class WebView(View):
         :param keys: 要发送的按键
         :type keys:  string
         '''
-        self._driver.send_keys(keys)
+        self.container.device.send_text(keys)
+        #self._driver.send_keys(keys)
     
     def drag(self, x1, y1, x2, y2):
         '''从(x1, y1)点滑动到(x2, y2)点

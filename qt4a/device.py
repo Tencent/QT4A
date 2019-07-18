@@ -775,7 +775,8 @@ class Device(object):
         :type  text: string
         '''
         max_send_size = 960
-        if six.PY2 and not isinstance(text, unicode): text = text.decode('utf8')
+        if isinstance(text, bytes):
+            text = text.decode('utf8')
         text_en = ''
         i = 0
         while i < len(text):
@@ -789,9 +790,10 @@ class Device(object):
                     continue
             text_en += c
             i += 1
-        text_en = text_en.encode('utf8')
+        
+        text_en = text_en.encode('raw_unicode_escape')
         total_len = len(text_en)
-        if total_len > max_send_size: raise RuntimeError('text is too long: %d' % total_len)
+        if total_len > max_send_size: raise RuntimeError('Text is too long %d' % total_len)
         extra = {'text': text_en}
         if len(text_en) == 1: extra['toClear'] = 'false'
         self.adb.send_broadcast('com.test.androidspy.input', extra)
