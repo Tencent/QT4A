@@ -777,7 +777,7 @@ class AndroidDriver(object):
             keys += str(key) + ','
         keys = keys[:-1]
         if keys == str(KeyCode.KEYCODE_HOME) or keys == str(KeyCode.KEYCODE_BACK):  # Home键需要特殊处理
-            return self._device.send_key(int(keys))
+            return self._device_driver.send_key(int(keys))
         else:
             return self.send_command(EnumCommand.CmdSendKey, Keys=keys)
 
@@ -812,7 +812,7 @@ class AndroidDriver(object):
                 # 认为点击成功了
                 pic_name = '%s.png' % int(time.time())
                 logger.warn('%s %s' % (e, pic_name))
-                self._device.take_screen_shot(pic_name)
+                self._device_driver.take_screen_shot(pic_name)
                 return True
             else:
                 raise e
