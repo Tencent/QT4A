@@ -109,6 +109,7 @@ def qt4a_repack_apk(apk_path_or_list, debuggable=True):
         debuggable
         )
 
+
 def repack_apk(args):
     print('Repacking apk %s...' % (' '.join(args.path)))
     outpath = qt4a_repack_apk(args.path, args.debuggable)
@@ -118,7 +119,20 @@ def repack_apk(args):
             print(it)
     else:
         print(outpath)
-    
+
+
+def inspect_apk(args):
+    from qt4a.androiddriver.util import AndroidPackage
+    print('Apk %s info:' % args.path)
+    apk = AndroidPackage(args.path)
+    print('  Package name: %s' % apk.package_name)
+    print('  Version: %s' % apk.version)
+    start_activity = apk.start_activity
+    if start_activity.startswith('.'):
+        start_activity = apk.package_name + start_activity
+    print('  Start activity: %s' % start_activity)
+
+
 def qt4a_manage_main():
     from qt4a.androiddriver.util import OutStream
     sys.stdout = OutStream(sys.stdout)
@@ -134,6 +148,10 @@ def qt4a_manage_main():
     repack_parser.add_argument('-d', '--debuggable', type=bool, default=True, help='whether apk debuggable after repack')
     repack_parser.set_defaults(func=repack_apk)
     
+    inspect_parser = subparsers.add_parser('inspect-apk', help='inspect apk file')
+    inspect_parser.add_argument('-p', '--path', required=True, help='path of apk to inspect')
+    inspect_parser.set_defaults(func=inspect_apk)
+
     args = parser.parse_args()
 
     if hasattr(args, 'func'): 
