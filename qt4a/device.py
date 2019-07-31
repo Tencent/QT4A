@@ -809,6 +809,10 @@ class Device(object):
         if self.adb.is_rooted():
             return 'Success' in self.run_shell_cmd(cmdline, True)
         else:
+            result = self.run_shell_cmd(cmdline)
+            if 'Success' in result:
+                return True
+            logger.warn('clear %s data failed: %s' % (package_name, result))
             return 'Success' in self.run_as(package_name, cmdline)
 
     def get_string_resource(self, pkg_name, string_id, lang=''):
