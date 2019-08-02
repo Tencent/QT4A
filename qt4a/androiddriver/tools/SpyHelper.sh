@@ -80,7 +80,7 @@ if [ "$1" = "runServer" ]; then
         exit
     fi
     
-    (exec $file_path $base com.test.androidspy.SpyHelper "$@" &)
+    (exec $file_path $base com.test.androidspy.SpyHelper "$@" > /dev/null 2> /dev/null &)
 
     i=10
     while [ i -gt 0 ]; do
