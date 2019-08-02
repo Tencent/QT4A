@@ -461,7 +461,7 @@ class DeviceDriver(object):
         if not self.adb.is_rooted():
             return self._send_command('ConnectWifi', WifiName=wifi_name)
         else:
-            result = self.run_driver_cmd('connectWifi', wifi_name, wifi_pass, timeout=60)
+            result = self.run_driver_cmd('connectWifi', wifi_name, wifi_pass, root=True, timeout=60)
             if not 'true' in result:
                 logger.debug('Connect wifi result: %s' % result)
                 return False
