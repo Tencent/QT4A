@@ -161,10 +161,10 @@ class LocalADBBackend(IADBBackend):
         '''
         device_host = '127.0.0.1'
         if ':' in name:
-            pattern = re.compile(r'^\d{4:5}$')
+            pattern = re.compile(r'^\d{3,5}$')
             pos = name.find(':')
             hostname = name[:pos]
-            if pattern.match(name[pos + 1:]):
+            if not pattern.match(name[pos + 1:]):
                 # adb connect device
                 name = name[pos + 1:]
                 device_host = hostname
