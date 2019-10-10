@@ -654,19 +654,15 @@ class ADB(object):
             logger.debug(result)
             self._need_quote = False
 
-# ifndef __RELEASE__
     def _set_system_writable(self):
         '''修改system分区可写
         '''
-        result = self.run_shell_cmd('mount', True)
+        output = self.run_shell_cmd('mount -o rw,remount /system', True)
+        result = self.run_shell_cmd('mount')
         for line in result.split('\n'):
-            if line.find('/system') >= 0:
-                block = line.split(' ')[0]
-                print(block)
-                self.run_shell_cmd('mount -o remount %s /system' % block, True)
+            if '/system' in line and 'rw,' in line:
                 return True
-        return False
-# endif
+        raise RuntimeError('remount /system failed: %s' % output.strip())
 
     def forward(self, port1, port2, type='tcp'):
         '''端口转发
