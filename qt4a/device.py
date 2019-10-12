@@ -1023,13 +1023,20 @@ class Device(object):
         hosts_path = '/system/etc/hosts'
         bak_hosts_path = hosts_path + '.bak'
         self.adb._set_system_writable()  # 需要system目录可写
+        backup = 'echo "127.0.0.1        localhost" > %s' % (hosts_path)
         if new_hosts:
             if not self.is_file_exists(bak_hosts_path):
                 # 先生成备份文件
                 self.copy_file(hosts_path, bak_hosts_path)
-            self.run_shell_cmd('echo "127.0.0.1        localhost" > %s' % (hosts_path), True)  # 保证当前的hosts文件是干净的
+            
+            result = self.run_shell_cmd(backup, True)  # 保证当前的hosts文件是干净的
+            if 'Permission denied' in result:
+                self.run_shell_cmd('chmod 666 %s' % hosts_path, True)
+                self.run_shell_cmd(backup, True)
+
             for ip, host in new_hosts:
                 self.run_shell_cmd('echo "%s        %s" >> %s' % (ip, host, hosts_path), True)
+
             for ip, host in new_hosts:
                 real_ip = self.resolve_domain(host)
                 if real_ip != ip:
@@ -1039,7 +1046,7 @@ class Device(object):
             if self.is_file_exists(bak_hosts_path):
                 self.copy_file(bak_hosts_path, hosts_path)
             else:
-                self.run_shell_cmd('echo "127.0.0.1        localhost" > %s' % (hosts_path), True)
+                self.run_shell_cmd(backup, True)
 
     def set_volume(self, volume):
         '''设置音量
