@@ -83,8 +83,12 @@ def jar2dex(jar_path, dex_path):
     if result:
         err_msg = result
         if sys.platform == 'win32': err_msg = err_msg.decode('gbk')
-        raise RuntimeError('convert jar %s to dex failed: %s' % (jar_path, err_msg))
-    
+        if proc.returncode:
+            raise RuntimeError('Convert jar %s to dex failed: %s' % (jar_path, err_msg))
+        else:
+            logging.warning(err_msg)
+
+
 def rebuild_dex_with_jumbo(dex_path):
     '''使用jumbo模式重新编译dex
     '''
