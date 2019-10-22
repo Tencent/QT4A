@@ -16,9 +16,11 @@
 '''Android测试桩代理
 '''
 from __future__ import print_function
-import six
+
 import json
+import re
 import os
+import six
 import sys
 import tempfile
 import threading
@@ -69,11 +71,25 @@ class EnumCommand(object):
     CmdSetWebViewDebuggingEnabled = "SetWebViewDebuggingEnabled"
 
 
+def install_qt4a_helper(adb, root_path):
+    from qt4a.androiddriver.util import AndroidPackage, version_cmp
+    qt4a_helper_package = 'com.test.androidspy'
+    apk_path = os.path.join(root_path, 'QT4AHelper.apk')
+    if adb.get_package_path(qt4a_helper_package):
+        # 判断版本
+        installed_version = adb.get_package_version(qt4a_helper_package)
+        package = AndroidPackage(apk_path)
+        install_version = package.version
+        if version_cmp(install_version, installed_version) > 0:
+            adb.install_apk(apk_path, True)
+    else:
+        adb.install_apk(apk_path)
+
+
 def copy_android_driver(device_id_or_adb, force=False, root_path=None, enable_acc=True):
     '''测试前的测试桩拷贝
     '''
     from qt4a.androiddriver.adb import ADB
-    from qt4a.androiddriver.util import AndroidPackage, version_cmp
 
     if isinstance(device_id_or_adb, ADB):
         adb = device_id_or_adb
@@ -106,6 +122,7 @@ def copy_android_driver(device_id_or_adb, force=False, root_path=None, enable_ac
         version = adb.run_shell_cmd('cat %s' % version_file)
 
         if version and not 'No such file or directory' in version and current_version <= int(version):
+            install_qt4a_helper(adb, root_path) # 避免QT4A助手被意外删除的情况
             # 不需要拷贝测试桩
             logger.warn('忽略本次测试桩拷贝：当前版本为%s，设备中版本为%s' %
                         (current_version, int(version)))
@@ -169,19 +186,8 @@ def copy_android_driver(device_id_or_adb, force=False, root_path=None, enable_ac
 
     adb.mkdir('%scache' % (dst_path), 777)
 
-    qt4a_helper_package = 'com.test.androidspy'
-    apk_path = os.path.join(root_path, 'QT4AHelper.apk')
-    if adb.get_package_path(qt4a_helper_package):
-        # 判断版本
-        installed_version = adb.get_package_version(qt4a_helper_package)
-        package = AndroidPackage(apk_path)
-        install_version = package.version
-        if version_cmp(install_version, installed_version) > 0:
-            adb.install_apk(apk_path, True)
-    else:
-        adb.install_apk(apk_path)
+    install_qt4a_helper(adb, root_path)
 
-    # adb.install_apk(os.path.join(root_path, 'QT4AMockApp.apk'), True)
     version_file_path = os.path.join(root_path, 'version.txt')
     dst_version_file_path = dst_path + os.path.split(version_file_path)[-1]
     adb.push_file(version_file_path, dst_version_file_path + '.tmp')  # 拷贝版本文件
@@ -190,7 +196,6 @@ def copy_android_driver(device_id_or_adb, force=False, root_path=None, enable_ac
         # 此时如果还是开启状态说明关闭selinux没有生效,主要是三星手机上面
         # 获取sdcars context
         if adb.get_sdk_version() >= 23:
-            import re
             sdcard_path = adb.get_sdcard_path()
             result = adb.run_shell_cmd('ls -Z %s' % sdcard_path)
             # u:object_r:media_rw_data_file:s0 u:object_r:rootfs:s0

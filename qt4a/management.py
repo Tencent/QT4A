@@ -31,33 +31,38 @@ except:
 def install_qt4a_driver(args):
     from qt4a.androiddriver.adb import ADB
     from qt4a.androiddriver.androiddriver import copy_android_driver
-    
+    device_id = None
     device_list = ADB.list_device()
-    if len(device_list) == 0:
-        raise RuntimeError('No Android device found')
-    elif len(device_list) == 1:
-        device_id = device_list[0]
-    elif len(device_list) > 1:
-        text = '\nCurrent Android device list:\n'
-        for i, dev in enumerate(device_list):
-            text += '%d. %s\n' % ((i + 1), dev)
+    if args.serialno and args.serialno not in device_list:
+        raise RuntimeError('Device %s not found' % args.serialno)
+    elif args.serialno:
+        device_id = args.serialno
+    else:
+        if len(device_list) == 0:
+            raise RuntimeError('No Android device found')
+        elif len(device_list) == 1:
+            device_id = device_list[0]
+        elif len(device_list) > 1:
+            text = '\nCurrent Android device list:\n'
+            for i, dev in enumerate(device_list):
+                text += '%d. %s\n' % ((i + 1), dev)
 
-        while True:
-            print(text)
-            result = raw_input('Please input the index of device to install driver:\n')
-            if result.isdigit():
-                if int(result) > len(device_list):
-                    sys.stderr.write('\nIndex %s out of range\nValid index range: [1, %d]\n' % (result, len(device_list)))
-                    time.sleep(0.1)
-                    continue
-                device_id = device_list[int(result) - 1]
-            else:
-                if not result in device_list:
-                    sys.stderr.write('\nDevice id %r not exist\n' % result)
-                    time.sleep(0.1)
-                    continue
-                device_id = result
-            break
+            while True:
+                print(text)
+                result = raw_input('Please input the index of device to install driver:\n')
+                if result.isdigit():
+                    if int(result) > len(device_list):
+                        sys.stderr.write('\nIndex %s out of range\nValid index range: [1, %d]\n' % (result, len(device_list)))
+                        time.sleep(0.1)
+                        continue
+                    device_id = device_list[int(result) - 1]
+                else:
+                    if not result in device_list:
+                        sys.stderr.write('\nDevice %r not exist\n' % result)
+                        time.sleep(0.1)
+                        continue
+                    device_id = result
+                break
         
     print('Device "%s" will install driver...' % device_id)
     copy_android_driver(device_id, args.force)
@@ -140,6 +145,7 @@ def qt4a_manage_main():
     parser = argparse.ArgumentParser()
     subparsers = parser.add_subparsers(help='subcommand')
     install_driver_parser = subparsers.add_parser('install-driver', help='install qt4a driver')
+    install_driver_parser.add_argument('-s', '--serialno', help='device serialno')
     install_driver_parser.add_argument('-f', '--force', action='store_true', help='force install qt4a driver')
     install_driver_parser.set_defaults(func=install_qt4a_driver)
     
