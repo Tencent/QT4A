@@ -89,6 +89,15 @@ class LocalDeviceProvider(IDeviceProvider):
         for device in device_list:
             if device.startswith('emulator-'): continue  # 避免出现两个名字不同的同一设备
             _device_list.append(device)
+        available_devices = os.environ.get('QT4A_AVAILABLE_DEVICES', '')
+        if _device_list and available_devices:
+            intersect_device_list = []
+            available_device_list = available_devices.split(',')
+            for available_device in available_device_list:
+                available_device = available_device.strip()
+                if available_device in _device_list:
+                    intersect_device_list.append(available_device)
+            _device_list = intersect_device_list
 
         import random
         random.shuffle(_device_list)  # 可以随机取设备
