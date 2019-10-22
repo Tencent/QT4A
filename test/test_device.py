@@ -22,9 +22,9 @@ except:
     import mock
 import unittest
 
+import os
 from qt4a.androiddriver.adb import ADB, LocalADBBackend
-from qt4a.device import Device
-
+from qt4a.device import Device, LocalDeviceProvider
 from test.test_androiddriver.test_adb import mock_run_shell_cmd as mock_run_shell_cmd_adb
 from test.test_androiddriver.test_devicedriver import mock_run_shell_cmd as mock_run_shell_cmd_dev
 
@@ -115,6 +115,27 @@ class TestDevice(unittest.TestCase):
         device = self._get_device()
         ADB.is_rooted = mock.Mock(return_value=True)
         self.assertEqual(device.is_file_exists('/data/local/tmp/1.txt'), True)
+
+
+class TestLocalDeviceProvider(unittest.TestCase):
+    '''LocalDeviceProvider类测试用例
+    '''
+
+    def test_list_device(self):
+        res_device_list = ['8776fads', 'afsddsf']
+        LocalADBBackend.list_device = mock.Mock(return_value=res_device_list)
+        device_list = LocalDeviceProvider.list()
+        self.assertEqual(len(device_list), len(res_device_list))
+        self.assertEqual(set(device_list), set(res_device_list))
+
+
+    def test_list_device_env(self):
+        res_device_list = ['8776fads', 'afsddsf']
+        os.environ['QT4A_AVAILABLE_DEVICES'] = 'afsddsf'
+        LocalADBBackend.list_device = mock.Mock(return_value=res_device_list)
+        device_list = LocalDeviceProvider.list()
+        self.assertEqual(device_list, ['afsddsf'])
+
         
 if __name__ == '__main__':
     unittest.main()
