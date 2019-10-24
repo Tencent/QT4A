@@ -19,6 +19,7 @@
 from __future__ import print_function
 
 import argparse
+import logging
 import os
 import sys
 import time
@@ -69,7 +70,7 @@ def install_qt4a_driver(args):
     print('Install QT4A driver to %s completely.' % device_id)
 
 
-def qt4a_repack_apk(apk_path_or_list, debuggable=True):
+def qt4a_repack_apk(apk_path_or_list, debuggable=True, max_heap_size=0):
     '''重打包apk
     
     :param apk_path_or_list: apk路径或apk路径列表
@@ -78,7 +79,9 @@ def qt4a_repack_apk(apk_path_or_list, debuggable=True):
                            True - 是
                            False - 否
                            None - 与原apk保持一致
-    :type debuggable:  bool/None
+    :type  debuggable: bool/None
+    :param max_heap_size: 能够使用的最大堆空间，单位为：MB
+    :type  max_heap_size: int/float
     '''
     from qt4a.apktool import repack
     cur_path = os.path.dirname(os.path.abspath(__file__))
@@ -111,13 +114,14 @@ def qt4a_repack_apk(apk_path_or_list, debuggable=True):
         os.path.join(cur_path, 'apktool', 'tools', 'dexloader.dex'),
         activity_list,
         file_path_list,
-        debuggable
+        debuggable,
+        max_heap_size=max_heap_size
         )
 
 
 def repack_apk(args):
     print('Repacking apk %s...' % (' '.join(args.path)))
-    outpath = qt4a_repack_apk(args.path, args.debuggable)
+    outpath = qt4a_repack_apk(args.path, args.debuggable, args.max_heap)
     print('Repack apk completely.\nOutput apk path is: ')
     if isinstance(outpath, list):
         for it in outpath:
@@ -140,6 +144,7 @@ def inspect_apk(args):
 
 def qt4a_manage_main():
     from qt4a.androiddriver.util import OutStream
+    logging.root.level = logging.INFO
     sys.stdout = OutStream(sys.stdout)
     sys.stderr = OutStream(sys.stderr)
     parser = argparse.ArgumentParser()
@@ -152,6 +157,7 @@ def qt4a_manage_main():
     repack_parser = subparsers.add_parser('repack-apk', help='repack apk file')
     repack_parser.add_argument('-p', '--path', nargs='*', required=True, help='path of apks to repack')
     repack_parser.add_argument('-d', '--debuggable', type=bool, default=True, help='whether apk debuggable after repack')
+    repack_parser.add_argument('-m', '--max-heap', type=int, default=0, help='max heap size can use, unit is MB')
     repack_parser.set_defaults(func=repack_apk)
     
     inspect_parser = subparsers.add_parser('inspect-apk', help='inspect apk file')
