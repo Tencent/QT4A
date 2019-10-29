@@ -169,7 +169,7 @@ def resign_apk(apk_path):
     return save_path
 
 
-def repack_apk(apk_path_or_list, provider_name, merge_dex_path, activity_list=None, res_file_list=None, debuggable=None, vm_safe_mode=None, max_heap_size=0):
+def repack_apk(apk_path_or_list, provider_name, merge_dex_path, activity_list=None, res_file_list=None, debuggable=None, vm_safe_mode=None, max_heap_size=0, force_append=False):
     '''
     '''
     if not isinstance(apk_path_or_list, list):
@@ -219,7 +219,7 @@ def repack_apk(apk_path_or_list, provider_name, merge_dex_path, activity_list=No
                 print('Save dex %s to %s' % (merge_dex_path, dex_file))
                 break
 
-            if low_memory:
+            if force_append or low_memory:
                 # 低内存下直接跳过已有dex，进行加速
                 dex_index += 1
                 continue
@@ -228,7 +228,8 @@ def repack_apk(apk_path_or_list, provider_name, merge_dex_path, activity_list=No
                 os.remove(classes_dex_path)
             apk_file.extract_file(dex_file, classes_dex_path)
             try:
-                merge_dex(classes_dex_path, [classes_dex_path, merge_dex_path], max_heap_size)
+                merge_dex(classes_dex_path, [
+                          classes_dex_path, merge_dex_path], max_heap_size)
             except TooManyMethodsError:
                 print('Merge dex into %s failed due to methods number' % dex_file)
                 dex_index += 1

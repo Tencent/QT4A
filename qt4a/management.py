@@ -70,7 +70,7 @@ def install_qt4a_driver(args):
     print('Install QT4A driver to %s completely.' % device_id)
 
 
-def qt4a_repack_apk(apk_path_or_list, debuggable=True, max_heap_size=0):
+def qt4a_repack_apk(apk_path_or_list, debuggable=True, max_heap_size=0, force_append=False):
     '''重打包apk
     
     :param apk_path_or_list: apk路径或apk路径列表
@@ -115,13 +115,14 @@ def qt4a_repack_apk(apk_path_or_list, debuggable=True, max_heap_size=0):
         activity_list,
         file_path_list,
         debuggable,
-        max_heap_size=max_heap_size
+        max_heap_size=max_heap_size,
+        force_append=force_append
         )
 
 
 def repack_apk(args):
     print('Repacking apk %s...' % (' '.join(args.path)))
-    outpath = qt4a_repack_apk(args.path, args.debuggable, args.max_heap)
+    outpath = qt4a_repack_apk(args.path, args.debuggable, args.max_heap, force_append=args.force_append)
     print('Repack apk completely.\nOutput apk path is: ')
     if isinstance(outpath, list):
         for it in outpath:
@@ -158,6 +159,7 @@ def qt4a_manage_main():
     repack_parser.add_argument('-p', '--path', nargs='*', required=True, help='path of apks to repack')
     repack_parser.add_argument('-d', '--debuggable', type=bool, default=True, help='whether apk debuggable after repack')
     repack_parser.add_argument('-m', '--max-heap', type=int, default=0, help='max heap size can use, unit is MB')
+    repack_parser.add_argument('-a', '--force-append', action='store_true', default=False, help='force append the dex instead of merge')
     repack_parser.set_defaults(func=repack_apk)
     
     inspect_parser = subparsers.add_parser('inspect-apk', help='inspect apk file')
