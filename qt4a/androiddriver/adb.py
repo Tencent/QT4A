@@ -357,7 +357,15 @@ class ADB(object):
             if self._need_quote:
                 cmd_line = 'su -c \'%s\'' % cmd_line
             else:
-                cmd_line = 'su -c %s' % cmd_line
+                orig_cmd_line = cmd_line
+                if not '&&' in orig_cmd_line:
+                    cmd_line = 'su -c %s' % cmd_line
+                else:
+                    result = []
+                    for cmd_line in orig_cmd_line.split('&&'):
+                        cmd_line = 'su -c %s' % cmd_line
+                        result.append(_handle_result(self.run_adb_cmd('shell', '%s' % cmd_line, **kwds)))
+                    return '\n'.join(result)
         return _handle_result(self.run_adb_cmd('shell', '%s' % cmd_line, **kwds))
 
     def reboot(self, _timeout=180):
@@ -1819,3 +1827,4 @@ class ADB(object):
 
 if __name__ == '__main__':
     pass
+
