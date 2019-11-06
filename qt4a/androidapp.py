@@ -82,6 +82,9 @@ class AndroidApp(object):
     def crashed(self):
         return self._app_crashed
 
+    def __del__(self):
+        self.close()
+
     def get_driver(self, process_name=''):
         '''根据进程名获取driver对象，默认为主程序driver
         '''
