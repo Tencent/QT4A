@@ -294,6 +294,7 @@ class AndroidDriver(object):
         self._max_block_time = 30  # 最长锁时间,防止卡死
         self._lock = threading.Lock()  # 创建AndroidDriver实例的互斥锁
         self._is_init = False
+        self._client = None
 
     @staticmethod
     def create(process_name, device_or_driver):
@@ -487,8 +488,9 @@ class AndroidDriver(object):
     def close(self):
         '''关闭连接
         '''
-        self._client.close()
-        self._client = None
+        if self._client:
+            self._client.close()
+            self._client = None
 
     def _get_lock(self, thread_id):
         '''获取锁
