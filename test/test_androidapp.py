@@ -87,7 +87,11 @@ class TestAndroidApp(unittest.TestCase):
     def test_set_activity_popup(self):
         app = self._get_app()
         self.assertEqual(app.set_activity_popup('com.tencent.demo.activity.MainActivity', False, 'com.tencent.demo'), True)
-        
+    
+    def test_close(self):
+        app = self._get_app()
+        app.close()
+
 if __name__ == '__main__':
     unittest.main()
     
