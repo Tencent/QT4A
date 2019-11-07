@@ -830,7 +830,11 @@ class ADB(object):
                         return False, ret
                     time.sleep(10)
                     continue
-                elif b'INSTALL_PARSE_FAILED_INCONSISTENT_CERTIFICATES' in ret or b'INSTALL_FAILED_DEXOPT' in ret or b'INSTALL_FAILED_UPDATE_INCOMPATIBLE' in ret:
+                elif b'INSTALL_FAILED_UPDATE_INCOMPATIBLE' in ret:
+                    # 强制卸载应用
+                    self.uninstall_app(package_name)
+                    return self._install_apk(apk_path, package_name, False)
+                elif b'INSTALL_PARSE_FAILED_INCONSISTENT_CERTIFICATES' in ret or b'INSTALL_FAILED_DEXOPT' in ret:
                     # 必须卸载安装
                     if not reinstall:
                         return False, ret
@@ -862,9 +866,6 @@ class ADB(object):
                         'su system %s' % cmdline, timeout=timeout)
                     if b'Success' in ret:
                         return True, ret
-                elif b'Error: Could not access the Package Manager' in ret:
-                    # 设备出现问题，等待监控程序重启设备
-                    time.sleep(30)
                 else:
                     return False, ret
             except TimeoutError as e:
