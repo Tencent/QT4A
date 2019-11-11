@@ -894,11 +894,11 @@ class View(object):
         '''长按
         
         :param duration: 按住时长，单位为秒
-        :type duration:  int
+        :type duration:  int/float
         :param x_offset: 距离控件区域左上角的横向偏移。
-        :type x_offset:  int或float
+        :type x_offset:  int/float
         :param y_offset: 距离控件区域左上角的纵向偏移。
-        :type y_offset:  int或float
+        :type y_offset:  int/float
         :param sync:     是否是同步调用，为True表示等到长按结束才返回，False表示立即返回
         :type sync:      bool
         '''
