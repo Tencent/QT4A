@@ -639,6 +639,30 @@ class Device(object):
         '''
         return self._device_driver.drag(x1, y1, x2, y2, count, wait_time, send_down_event, send_up_event)
 
+    def click(self, x, y):
+        '''单击屏幕坐标
+
+        :param x: 横坐标
+        :type  x: int/float
+        :param y: 纵坐标
+        :type  y: int/float
+        '''
+        return self._device_driver.drag(x, y, x, y)
+
+    def long_click(self, x, y, duration=1):
+        '''长按屏幕坐标
+
+        :param x: 横坐标
+        :type  x: int/float
+        :param y: 纵坐标
+        :type  y: int/float
+        :param duration: 按住时长，单位为秒
+        :type duration:  int/float
+        '''
+        self._device_driver.drag(x, y, x, y, send_up_event=False)
+        time.sleep(duration)
+        self._device_driver.drag(x, y, x, y, send_down_event=False)
+
     def reboot(self, wait_cpu_low=True, usage=20, duration=10, timeout=120):
         '''重启手机
         
