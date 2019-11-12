@@ -79,7 +79,22 @@ class QT4ABrowser(AndroidApp, IBrowser):
             time.sleep(1)
         else:
             raise RuntimeError('find url %s failed' % url)
-        
+
+    def clear_data(self):
+        '''清理浏览器数据
+        '''
+        self.device.adb.kill_process(QT4ABrowserWindow.Process)
+        dir_path = '/data/data/%s/app_webview' % self.package_name
+        cmdline = 'rm -r %s' % dir_path
+        self.run_shell_cmd(cmdline)
+
+    def close(self):
+        '''关闭窗口
+        '''
+        browser_window = QT4ABrowserWindow(self)
+        browser_window.close()
+
+
 class QT4ABrowserWindow(Window):
     '''QT4A浏览器窗口
     '''
