@@ -193,7 +193,7 @@ class Window(object):
         timeout = 3
         time0 = time.time()
         while time.time() - time0 < timeout:
-            if self._driver._device.get_current_activity() != self.Activity: return
+            if self.device.current_activity != self.Activity: return
             time.sleep(0.5)
     
     def get_metis_view(self):
@@ -1893,12 +1893,20 @@ class ChromiumWebView(WebkitWebView):
         else:
             raise RuntimeError('Get page url failed')
     
-    def get_debugger(self):
+    def get_debugger(self, timeout=10):
         '''获取当前页面的RemoteDebugger实例
         '''
         url = self.get_page_url()
-        return self._chrome_master.find_page(url=url, title=self._title)  # 获取最后一个页面
-    
+        time0 = time.time()
+        while time.time() - time0 < timeout:
+            try:
+                return self._chrome_master.find_page(url=url, title=self._title)  # 获取最后一个页面
+            except RuntimeError as e:
+                logger.warn('[%s] %s' % (self.__class__.__name__, e))
+                time.sleep(0.5)
+        else:
+            raise RuntimeError('Find page timeout')
+
     def convert_frame_tree(self, frame_tree, parent=None):
         '''将frame tree转化为Frame对象
         '''
