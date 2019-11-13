@@ -29,7 +29,7 @@ import time
 
 from pkg_resources import iter_entry_points
 from qt4a.androiddriver.adbclient import ADBClient
-from qt4a.androiddriver.util import Singleton, Deprecated, logger, ThreadEx, TimeoutError, InstallPackageFailedError, PermissionError, is_int, encode_wrap, enforce_utf8_decode
+from qt4a.androiddriver.util import Singleton, Deprecated, logger, ThreadEx, TimeoutError, InstallPackageFailedError, PermissionError, is_int, utf8_encode, encode_wrap, enforce_utf8_decode
 
 try:
     import _strptime  # time.strptime() is not thread-safed, so import _strptime first, otherwise it raises an AttributeError: _strptime_time
@@ -468,24 +468,22 @@ class ADB(object):
         if not hasattr(self, '_log_list'):
             return
         log_list = self.get_log()
-        if six.PY2:
-            for i in range(len(log_list)):
-                log = log_list[i]
-                if not isinstance(log, unicode):
-                    # 先编码为unicode
-                    for code in ['utf8', 'gbk']:
-                        try:
-                            log = log.decode(code)
-                            break
-                        except UnicodeDecodeError as e:
-                            # logger.warn('decode with %s error: %s' % (code, e))
-                            pass
-                    else:
-                        log = repr(log)
-                log_list[i] = log.encode('utf8') if isinstance(
-                    log, unicode) else log
-        f = open(save_path, 'w')
-        f.write('\n'.join(log_list))
+        for i, log in enumerate(log_list):
+            if isinstance(log, bytes):
+                # 先编码为unicode
+                for code in ['utf8', 'gbk']:
+                    try:
+                        log = log.decode(code)
+                        break
+                    except UnicodeDecodeError as e:
+                        # logger.warn('decode with %s error: %s' % (code, e))
+                        pass
+                else:
+                    log = repr(log)
+            log_list[i] = log.encode('utf8') if not isinstance(
+                log, bytes) else log
+        f = open(save_path, 'wb')
+        f.write(b'\n'.join(log_list))
         f.close()
 
     def add_logcat_callback(self, callback):
@@ -501,12 +499,13 @@ class ADB(object):
             self._logcat_callbacks.remove(callback)
 
     def insert_logcat(self, process_name, year, month_day, timestamp, level, tag, tid, content):
-        self._log_list.append('[%s] [%s-%s %s] %s/%s(%s): %s' % (process_name,
-                                                                 year, month_day, timestamp,
-                                                                 level,
-                                                                 tag,
-                                                                 tid,
-                                                                 content))
+        self._log_list.append(b'[%s] [%d-%s %s] %s/%s(%d): %s' % (utf8_encode(process_name),
+                                                                 int(year), utf8_encode(month_day),
+                                                                 utf8_encode(timestamp),
+                                                                 utf8_encode(level),
+                                                                 utf8_encode(tag),
+                                                                 int(tid),
+                                                                 utf8_encode(content)))
         pid = 0
         pattern = re.compile(r'^(.+)\((\d+)\)$')
         ret = pattern.match(process_name)
@@ -548,6 +547,9 @@ class ADB(object):
                 else:
                     continue
 
+            if 'beginning of main' in log or 'beginning of system' in log:
+                continue
+
             ret = pattern.match(log)
             if not ret:
                 logger.info('log: %s not match pattern' % log)
@@ -579,7 +581,7 @@ class ADB(object):
 
                             for i in range(len(self._log_list) - 1, -1, -1):
                                 # 修复之前记录的“<pre-initialized>”进程
-                                pre_process_name = '[%s(%d)]' % (
+                                pre_process_name = b'[%s(%d)]' % (
                                     init_process, item['pid'])
                                 if not pre_process_name in self._log_list[i]:
                                     continue

@@ -16,12 +16,12 @@
 '''定义Android控件
 '''
 
-import six
-from io import BytesIO
+import io
 import os
 import tempfile
 import time
 
+import six
 from testbase.util import LazyInit, Timeout
 from tuia.exceptions import ControlNotFoundError
 
@@ -1830,7 +1830,7 @@ class WebView(View):
         with open(temp_path, 'rb') as fp:
             image_data = fp.read()
         os.remove(temp_path)
-        image = Image.open(BytesIO(image_data))
+        image = Image.open(io.BytesIO(image_data))
         image = image.crop(self.rect)
         return image
     
