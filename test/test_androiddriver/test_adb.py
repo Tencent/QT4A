@@ -20,7 +20,9 @@ try:
     from unittest import mock
 except:
     import mock
+import os
 import shlex
+import tempfile
 import unittest
 
 from qt4a.androiddriver.adb import ADB, LocalADBBackend
@@ -346,6 +348,8 @@ u0_a1308  24517 2598  1588632 72300 ffffffff 00000000 S com.tencent.nijigen:xg_s
 u0_a1308  24558 2598  1634068 86392 ffffffff 00000000 S com.tencent.nijigen:picker
 u0_a1308  24887 1     9272   448   ffffffff 00000000 S /data/data/com.tencent.nijigen/lib/libxguardian.so
 '''
+    elif args[0] == 'logcat':
+        return ''
     else:
         raise NotImplementedError('Not supported command: %s' % cmd_line)
     
@@ -420,7 +424,20 @@ class TestADB(unittest.TestCase):
         self.assertEqual(dir_list[0]['name'], 'com.android.apps.tag')
         self.assertEqual(dir_list[0]['attr'], 'rwxr-x--x')
         
-    
+    def test_save_log(self):
+        adb_backend = LocalADBBackend('127.0.0.1', '')
+        adb = ADB(adb_backend)
+        adb.start_logcat()
+        adb.insert_logcat('test', 2019, '0101', '10:51:42.899', 'I', 'test', 1, '我们')
+        adb.insert_logcat('test', 2019, '0101', '10:51:42.899', 'I', 'test', 1, u'中国'.encode('gbk'))
+        adb.insert_logcat('test', 2019, '0101', '10:51:42.899', 'I', 'test', 1, u'\ub274')
+        save_path = tempfile.mkstemp('.log')[1]
+        adb.save_log(save_path)
+        with open(save_path, 'r') as fp:
+            text = fp.read()
+            self.assertIn('我们', text)
+            self.assertIn('中国', text)
+
     
 if __name__ == '__main__':
     unittest.main()
