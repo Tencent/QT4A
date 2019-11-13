@@ -17,7 +17,7 @@ import os
 import shlex
 
 import sphinx_rtd_theme
-
+import recommonmark.parser as markdown
 
 # If extensions (or modules to document with autodoc) are in another directory,
 # add these directories to sys.path here. If the directory is relative to the
@@ -39,8 +39,7 @@ templates_path = ['_templates']
 
 # The suffix(es) of source filenames.
 # You can specify multiple suffix as a list of string:
-# source_suffix = ['.rst', '.md']
-source_suffix = '.rst'
+source_suffix = ['.rst', '.md']
 
 # The encoding of source files.
 #source_encoding = 'utf-8-sig'
@@ -50,7 +49,7 @@ master_doc = 'index'
 
 # General information about the project.
 project = u'QT4A'
-copyright = u'2018, QTA'
+copyright = u'2018-2019, QTA'
 author = u'QTA'
 
 # The version info for the project you're documenting, acts as replacement for
@@ -287,3 +286,7 @@ texinfo_documents = [
 
 # If true, do not generate a @detailmenu in the "Top" node's menu.
 #texinfo_no_detailmenu = False
+
+source_parsers = {
+    '.md': markdown.CommonMarkParser,
+}
