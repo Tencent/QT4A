@@ -1831,9 +1831,11 @@ class WebView(View):
             image_data = fp.read()
         os.remove(temp_path)
         image = Image.open(io.BytesIO(image_data))
-        image = image.crop(self.rect)
+        left, top, width, height = self.rect
+        image = image.crop((left, top, left + width, top + height))
         return image
-    
+
+
 class ChromiumWebView(WebkitWebView):
     '''Chromium内核的WebView
     '''
