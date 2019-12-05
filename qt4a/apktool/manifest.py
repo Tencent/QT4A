@@ -65,7 +65,7 @@ class AndroidManifest(object):
         return int(self._dom.getElementsByTagName('uses-sdk')[0].getAttribute('android:minSdkVersion'))
     
     @min_sdk_version.setter
-    def  min_sdk_version(self, version):
+    def min_sdk_version(self, version):
         '''设置最低SDK版本
         '''
         self._dom.getElementsByTagName('uses-sdk')[0].setAttribute('android:minSdkVersion', str(version))
@@ -75,7 +75,13 @@ class AndroidManifest(object):
         '''目标SDK版本
         '''
         return int(self._dom.getElementsByTagName('uses-sdk')[0].getAttribute('android:targetSdkVersion'))
-        
+    
+    @target_sdk_version.setter
+    def target_sdk_version(self, version):
+        '''设置目标SDK版本
+        '''
+        self._dom.getElementsByTagName('uses-sdk')[0].setAttribute('android:targetSdkVersion', str(version))
+
     @property
     def application_name(self):
         '''
