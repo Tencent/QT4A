@@ -16,8 +16,9 @@
 '''AXML格式处理
 '''
 
-import six
+import logging
 import re
+import six
 import struct
 import xml.dom.minidom
 from qt4a.apktool.__init__ import APKError
@@ -31,8 +32,11 @@ class EnumAttrType(object):
     ICON_ATTR = 'icon', 0x01010002
     NAME_ATTR = 'name', 0x01010003
     PERMISSION_ATTR = 'permission', 0x01010006
+    READ_PERMISSION = 'readPermission', 0x1010007
+    WRITE_PERMISSION = 'writePermission', 0x1010008
     PROTECTION_LEVEL_ATTR = 'protectionLevel', 0x1010009
     PERMISSION_GROUP_ATTR = 'permissionGroup', 0x101000a
+    PERSISTENT = 'persistent', 0x101000d
     ENABLED_ATTR = 'enabled', 0x101000e
     DEBUGGABLE_ATTR = 'debuggable', 0x0101000f
     EXPORTED_ATTR = 'exported', 0x1010010
@@ -42,6 +46,7 @@ class EnumAttrType(object):
     CLEAR_TASK_ON_LAUNCH_ATTR = 'clearTaskOnLaunch', 0x1010015
     EXCLUDE_FROM_RECENTS_ATTR = 'excludeFromRecents', 0x1010017
     AUTHORITIES_ATTR = 'authorities', 0x1010018
+    INIT_ORDER = 'initOrder', 0x101001a
     GRANT_URI_PERMISSIONS_ATTR = 'grantUriPermissions', 0x101001b
     PRIORITY_ATTR = 'priority', 0x101001c
     LAUNCH_MODE_ATTR = 'launchMode', 0x101001d
@@ -53,6 +58,7 @@ class EnumAttrType(object):
     SCHEME_ATTR = 'scheme', 0x1010027
     HOST_ATTR = 'host', 0x1010028
     PATH_PREFIX_ATTR = 'pathPrefix', 0x101002b
+    WINDOW_ANIMATION_STYLE = 'windowAnimationStyle', 0x10100ae
     TARGET_ACTIVITY_ATRR = 'targetActivity', 0x1010202
     ALWAYS_RETAIN_TASK_STATE_ATTR = 'alwaysRetainTaskState', 0x1010203
     ALLOW_TASK_REPARENTING_ATTR = 'allowTaskReparenting', 0x1010204
@@ -83,14 +89,19 @@ class EnumAttrType(object):
     SCREEN_SIZE_ATTR = 0x010102ca
     SCREEN_DENSITY_ATTR = 0x010102cb
     HARDWARE_ACCELERATED_ATTR = 'hardwareAccelerated', 0x10102d3
+    LARGE_HEAP = 'largeHeap', 0x101035a
     REQUIRES_SMALLEST_WIDTH_DP_ATTR = 0x01010364
     COMPATIBLE_WIDTH_LIMIT_DP_ATTR = 0x01010365
     LARGEST_WIDTH_LIMIT_DP_ATTR = 0x01010366
     STOP_WITH_TASK_ATTR = 'stopWithTask', 0x101036a
     PUBLIC_KEY_ATTR = 0x010103a6
+    ISOLATED_PROCESS = 'isolatedProcess', 0x10103a9
+    SUPPORTS_RT1 = 'supportsRtl', 0x10103af
     CATEGORY_ATTR = 0x010103e8
     RESIZEABLE_ACTIVITY_ATTR = 'resizeableActivity', 0x10104f6
-    
+    NETWORK_SECURITY_CONFIG = 'networkSecurityConfig', 0x1010527
+    APP_COMPONENTFACTORY = 'appComponentFactory', 0x101057a
+
     @staticmethod
     def list():
         '''获取attr列表
@@ -480,7 +491,8 @@ class ResXMLResourceMapChunk(ResChunkHeader):
                         break
                 elif val == it:
                     break
-
+            else:
+                logging.warn('[%s] Attribute 0x%x not defined' % (self.__class__.__name__, it))
         assert(self.size == total_size)
     
     def serialize(self):

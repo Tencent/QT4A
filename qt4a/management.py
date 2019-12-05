@@ -132,11 +132,13 @@ def repack_apk(args):
 
 
 def inspect_apk(args):
-    from qt4a.androiddriver.util import AndroidPackage
+    from qt4a.apktool.manifest import AndroidManifest
     print('Apk %s info:' % args.path)
-    apk = AndroidPackage(args.path)
+    apk = AndroidManifest(args.path)
     print('  Package name: %s' % apk.package_name)
-    print('  Version: %s' % apk.version)
+    print('  Version: %s' % apk.version_name)
+    print('  Minimun sdk: %s' % apk.min_sdk_version)
+    print('  Targat sdk: %s' % apk.target_sdk_version)
     start_activity = apk.start_activity
     if start_activity.startswith('.'):
         start_activity = apk.package_name + start_activity
