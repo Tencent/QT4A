@@ -576,6 +576,16 @@ class View(object):
         return flags & ENABLED_MASK == ENABLE
 
     @property
+    @func_wrap
+    def background_color(self):
+        '''背景色
+        '''
+        result = self._driver.get_object_field_value(self.hashcode, 'mBackground.mColorState.mUseColor')
+        if result == 'null':
+            return None
+        return int(result)
+
+    @property
     def content_desc(self):
         '''控件描述
         '''
