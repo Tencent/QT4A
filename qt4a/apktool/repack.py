@@ -160,12 +160,12 @@ def resign_apk(apk_path):
     cmdline = ['jarsigner', '-digestalg', 'SHA1', '-sigalg', 'MD5withRSA', '-keystore',
                key_file_path, '-signedjar', save_path, apk_path, 'qt4a']
     logging.info(' '.join(cmdline))
-    proc = subprocess.Popen(cmdline, stdin=subprocess.PIPE)
+    proc = subprocess.Popen(cmdline, stdin=subprocess.PIPE, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
     out, err = proc.communicate(b'test@123')
     if out:
-        logging.info('jarsigner: ' + out)
+        logging.info('jarsigner: ' + out.decode())
     if err:
-        logging.warn('jarsigner: ' + err)
+        logging.warn('jarsigner: ' + err.decode())
     return save_path
 
 
