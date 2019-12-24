@@ -1866,16 +1866,13 @@ class ChromiumWebView(WebkitWebView):
         self._device = self.container.device
         self._pid = self._device.adb.get_pid(self._driver._process_name)
         self._service_name = 'webview_devtools_remote_%d' % self._pid
-        chrome_master.set_logger(logger)
-        self._chrome_master = chrome_master.ChromeMaster(('localhost', self._pid), self.create_socket)  # 高版本Chromium内核必须要使用localhost的Host
 
-        if self._pid in self.__class__.debugger_instances and self.__class__.debugger_instances[self._pid]:
-            self.__class__.debugger_instances[self._pid].close()
-            self.__class__.debugger_instances[self._pid] = None
+        chrome_master.set_logger(logger)
+
+        self._chrome_master = chrome_master.ChromeMaster(('localhost', self._pid), self.create_socket)  # 高版本Chromium内核必须要使用localhost的Host
 
         self._page_debugger = self.get_debugger()
         self._page_debugger.register_handler(chrome_master.RuntimeHandler)
-        self.__class__.debugger_instances[self._pid] = self._page_debugger
 
     def create_socket(self):
         '''创建socket对象
@@ -1959,7 +1956,9 @@ class ChromiumWebView(WebkitWebView):
         :type script:        string
         '''
         from chrome_master import util
-        frame_id = self._get_frame_id_by_xpath(frame_xpaths)
+        frame_id = None
+        if frame_xpaths:
+            frame_id = self._get_frame_id_by_xpath(frame_xpaths)
         try:
             return self._page_debugger.runtime.eval_script(frame_id, script)
         except util.JavaScriptError as e:
