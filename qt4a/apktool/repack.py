@@ -46,6 +46,15 @@ class OutOfMemoryError(RuntimeError):
     pass
 
 
+def general_decode(s):
+    if not isinstance(s, bytes):
+        return s
+    try:
+        return s.decode('utf8')
+    except:
+        return s.decode('gbk')
+
+
 def get_apk_signature(rsa_file_path):
     '''获取应用签名
     '''
@@ -163,9 +172,9 @@ def resign_apk(apk_path):
     proc = subprocess.Popen(cmdline, stdin=subprocess.PIPE, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
     out, err = proc.communicate(b'test@123')
     if out:
-        logging.info('jarsigner: ' + out.decode())
+        logging.info('jarsigner: ' + general_decode(out))
     if err:
-        logging.warn('jarsigner: ' + err.decode())
+        logging.warn('jarsigner: ' + general_decode(err))
     return save_path
 
 
