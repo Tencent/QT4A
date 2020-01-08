@@ -305,6 +305,9 @@ class ADB(object):
         :param cmd_line: 要运行的命令行
         :param root: 是否使用root权限
         '''
+        if isinstance(cmd_line, bytes):
+            cmd_line = cmd_line.decode('utf8')
+
         if not self._newline:
             result = self.run_adb_cmd('shell', 'echo "1\n2"')
             if b'\r\n' in result:
@@ -366,7 +369,8 @@ class ADB(object):
                         cmd_line = 'su -c %s' % cmd_line
                         result.append(_handle_result(self.run_adb_cmd('shell', '%s' % cmd_line, **kwds)))
                     return '\n'.join(result)
-        return _handle_result(self.run_adb_cmd('shell', '%s' % cmd_line, **kwds))
+
+        return _handle_result(self.run_adb_cmd('shell', cmd_line, **kwds))
 
     def reboot(self, _timeout=180):
         '''重启手机'''
