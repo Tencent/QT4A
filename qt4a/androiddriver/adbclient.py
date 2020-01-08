@@ -306,10 +306,11 @@ class ADBClient(object):
             raise AdbError("Bad response: %r" % (stat,))
 
     def _send_command(self, cmd):
-        data = "%04x%s" % (len(cmd), cmd)
+        if not isinstance(cmd, bytes):
+            cmd = cmd.encode('utf8')
+        data = b"%04x%s" % (len(cmd), cmd)
         if not self._sock: self._connect()
-        # logger.debug('send: %r' % data)
-        self._sock.send(data.encode('utf8'))
+        self._sock.send(data)
         return self._check_status()
 
     def _recv(self, size=None):
