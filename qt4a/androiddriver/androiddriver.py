@@ -17,6 +17,7 @@
 '''
 from __future__ import print_function
 
+import base64
 import json
 import re
 import os
@@ -763,8 +764,8 @@ class AndroidDriver(object):
         result = self.send_command(
             EnumCommand.CmdCaptureControl, Control=control)
         data = result['Result']
-        # print (data)
-        import base64
+        if not isinstance(data, bytes):
+            data = data.encode()
         data = base64.decodestring(data)
         return data
 
