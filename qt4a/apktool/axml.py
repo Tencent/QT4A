@@ -100,6 +100,8 @@ class EnumAttrType(object):
     CATEGORY_ATTR = 0x010103e8
     RESIZEABLE_ACTIVITY_ATTR = 'resizeableActivity', 0x10104f6
     NETWORK_SECURITY_CONFIG = 'networkSecurityConfig', 0x1010527
+    COMPILE_SDK_VERSION_ATTR = 'compileSdkVersion', 0x01010572
+    COMPILE_SDK_VERSION_CODENAME_ATTR = 'compileSdkVersionCodename', 0x01010573
     APP_COMPONENTFACTORY = 'appComponentFactory', 0x101057a
 
     @staticmethod
