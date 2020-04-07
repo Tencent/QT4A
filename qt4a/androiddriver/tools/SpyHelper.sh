@@ -8,6 +8,7 @@ if [ $dir_name = "SpyHelper.sh" ]; then
 fi
 
 base=$(cd $dir_name; pwd)
+
 export CLASSPATH=$base/SpyHelper.jar
 #export LD_PRELOAD=
 export LD_LIBRARY_PATH_32=/vendor/lib:/system/lib
@@ -60,6 +61,9 @@ get_pid(){
 }
 
 file_path="$base/app_process"
+if [ ! -f $file_path ]; then
+    file_path="/su/bin/app_process"
+fi
 if [ ! -f $file_path ]; then
     file_path="/system/bin/app_process32_original" # supersu
 fi
