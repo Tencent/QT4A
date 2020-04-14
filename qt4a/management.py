@@ -21,6 +21,7 @@ from __future__ import print_function
 import argparse
 import logging
 import os
+import shutil
 import sys
 import time
 
@@ -123,6 +124,9 @@ def qt4a_repack_apk(apk_path_or_list, debuggable=True, max_heap_size=0, force_ap
 def repack_apk(args):
     print('Repacking apk %s...' % (' '.join(args.path)))
     outpath = qt4a_repack_apk(args.path, args.debuggable, args.max_heap, force_append=args.force_append)
+    if args.out_path and not isinstance(outpath, list):
+        shutil.copyfile(outpath, args.out_path)
+        outpath = args.out_path
     print('Repack apk completely.\nOutput apk path is: ')
     if isinstance(outpath, list):
         for it in outpath:
@@ -162,6 +166,8 @@ def qt4a_manage_main():
     repack_parser.add_argument('-d', '--debuggable', type=bool, default=True, help='whether apk debuggable after repack')
     repack_parser.add_argument('-m', '--max-heap', type=int, default=0, help='max heap size can use, unit is MB')
     repack_parser.add_argument('-a', '--force-append', action='store_true', default=False, help='force append the dex instead of merge')
+    repack_parser.add_argument('-o', '--out-path', help='out apk path')
+
     repack_parser.set_defaults(func=repack_apk)
     
     inspect_parser = subparsers.add_parser('inspect-apk', help='inspect apk file')
