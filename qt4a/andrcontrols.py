@@ -2229,8 +2229,8 @@ class DatePicker(FrameLayout):
     def set_date(self, year, month, day): 
         if year < 0 or month < 1 or month > 12 or day < 1 or day > 31:
             raise RuntimeError('参数传入不符合时间要求')
-#         if self._driver._device.sdk_version < 21:
-        if self._driver._device.adb.get_sdk_version() < 21:  # 5.0以下用如下方法
+
+        if self._driver._adb.get_sdk_version() < 21:  # 5.0以下用如下方法
             self._driver.call_object_method(self.hashcode, 'mCurrentDate', 'set', 'void', year, month - 1, day)
         else:
             self._driver.call_object_method(self.hashcode, 'mDelegate.mCurrentDate', 'set', 'void', year, month - 1, day)
