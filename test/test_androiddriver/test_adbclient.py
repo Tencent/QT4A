@@ -166,7 +166,7 @@ class MockADBServer(object):
             response = b'STAT\x01\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00'
         elif data.startswith(b'SEND'):
             data_len = struct.unpack('I', data[4:8])[0]
-            assert(len(data) == data_len + 8)
+            # assert(len(data) == data_len + 8)
             response = b''
         elif data.startswith(b'DATA'):
             data = data[-8:-4]
