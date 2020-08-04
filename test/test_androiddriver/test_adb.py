@@ -433,10 +433,14 @@ class TestADB(unittest.TestCase):
         adb.insert_logcat('test', 2019, '0101', '10:51:42.899', 'I', 'test', 1, u'\ub274')
         save_path = tempfile.mkstemp('.log')[1]
         adb.save_log(save_path)
-        with open(save_path, 'r') as fp:
+        with open(save_path, 'rb') as fp:
             text = fp.read()
-            self.assertIn('我们', text)
-            self.assertIn('中国', text)
+            try:
+                text = text.decode('utf8')
+            except:
+                text = text.decode('gbk')
+            self.assertIn(u'我们', text)
+            self.assertIn(u'中国', text)
 
     
 if __name__ == '__main__':
