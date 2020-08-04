@@ -32,7 +32,7 @@ jobs:
           pip install -r requirements.txt
       - name: Run Tests
         run: |
-          pytest --cov=.
+          pytest --cov=qt4a
       - name: Upload coverage reports to Codecov
         run: |
           codecov -t ${{ secrets.CODECOV_TOKEN }}
