@@ -688,7 +688,10 @@ def time_clock():
     '''
     '''
     if sys.platform == 'win32':
-        return time.clock()
+        try:  # Python 3.4+
+            return time.perf_counter()
+        except AttributeError:  # Earlier than Python 3.
+            return time.clock()
     else:
         return time.time()
     
