@@ -28,7 +28,7 @@ import time
 
 from pkg_resources import iter_entry_points
 from qt4a.androiddriver.adbclient import ADBClient
-from qt4a.androiddriver.util import Singleton, Deprecated, logger, ThreadEx, TimeoutError, InstallPackageFailedError, PermissionError, is_int, utf8_encode, encode_wrap, enforce_utf8_decode, general_encode
+from qt4a.androiddriver.util import Singleton, Deprecated, logger, ThreadEx, TimeoutError, InstallPackageFailedError, PermissionError, is_int, utf8_encode, encode_wrap, enforce_utf8_decode, general_encode, time_clock
 
 try:
     import _strptime  # time.strptime() is not thread-safed, so import _strptime first, otherwise it raises an AttributeError: _strptime_time
@@ -56,13 +56,13 @@ def get_adb_path():
 adb_path = get_adb_path()
 
 
-def is_adb_server_opend():
+def is_adb_server_opend(host='localhost'):
     '''判断ADB Server是否开启
     '''
     import socket
     sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
     try:
-        sock.bind(('localhost', 5037))
+        sock.bind((host, 5037))
         sock.close()
         return False
     except:
@@ -135,7 +135,7 @@ class LocalADBBackend(IADBBackend):
     def list_device(device_host='127.0.0.1'):
         '''枚举设备列表
         '''
-        if not is_adb_server_opend():
+        if not is_adb_server_opend(device_host):
             return []
         result = ADBClient.get_client(device_host).call('devices',
                                                         retry_count=3)[0]
@@ -282,7 +282,7 @@ class ADB(object):
                 logger.info('adb %s:%s %s %s' %
                             (self._backend.device_host,
                              self._backend.device_name, cmd, ' '.join(args)))
-            time0 = time.clock()
+            time0 = time_clock()
             try:
                 result = self._backend.run_adb_cmd(cmd,
                                                    *args,
@@ -297,7 +297,7 @@ class ADB(object):
                 return result
             if not threading.current_thread(
             ).ident in self._log_filter_thread_list:
-                logger.info('执行ADB命令耗时：%s' % (time.clock() - time0))
+                logger.info('执行ADB命令耗时：%s' % (time_clock() - time0))
             out, err = result
 
             if err:
