@@ -20,6 +20,7 @@ import threading
 import json
 import time
 import random
+import sys
 import unittest
 
 try:
@@ -42,13 +43,14 @@ class AndroidSpyRequestHandler(socketserver.StreamRequestHandler):
         while offset < len(response):
             self.wfile.write(response[offset:offset + slice_len])
             self.wfile.flush()
-            #print 'send'
             offset += slice_len
             #time.sleep(0.1)
 
     def handle(self):
         while True:
             line = self.rfile.readline()
+            if sys.version_info[0] == 3 and isinstance(line, bytes):
+                line = line.decode('utf8')
             request = json.loads(line)
             cmd = request['Cmd']
             if cmd == 'Hello':
