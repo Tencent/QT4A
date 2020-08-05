@@ -20,12 +20,39 @@ try:
     from unittest import mock
 except:
     import mock
+import copy
 import os
 import shlex
 import tempfile
+import threading
+import time
 import unittest
 
 from qt4a.androiddriver.adb import ADB, LocalADBBackend
+from qt4a.androiddriver.adbclient import Pipe
+
+
+class MockPopen(object):
+
+    def __init__(self):
+        self._stdout = Pipe()
+        self._stderr = Pipe()
+
+    @property
+    def pid(self):
+        return 1
+
+    @property
+    def stdout(self):
+        return self._stdout
+
+    @property
+    def stderr(self):
+        return self._stderr
+
+    def poll(self):
+        return 0
+
 
 def mock_run_shell_cmd(cmd_line, root=False, **kwds):
     args = shlex.split(cmd_line)
@@ -442,7 +469,37 @@ class TestADB(unittest.TestCase):
             self.assertIn(u'我们', text)
             self.assertIn(u'中国', text)
 
-    
+    def test_logcat_thread_func(self):
+        adb_backend = LocalADBBackend('127.0.0.1', '')
+        adb = ADB(adb_backend)
+        adb._log_list = []
+        adb._logcat_running = True
+        adb._log_pipe = MockPopen()
+        adb._log_pipe.stdout.write(b'08-05 10:46:13.395 100 22878 I DEBUG   (22878): Revision: 0\n')
+        adb._log_pipe.stdout.write(b'08-05 10:46:13.395 101 22878 I DEBUG   (22878): Revision: 0\n')
+        def stop_thread():
+            time.sleep(1)
+            adb._logcat_running = False
+            adb._log_pipe.stdout.write(b'\n')
+        t = threading.Thread(target=stop_thread)
+        t.daemon = True
+        t.start()
+        process = {
+            'pid': 100,
+            'proc_name': '<pre-initialized>',
+            'ppid': 1
+        }
+        def mock_list_process():
+            if process['proc_name'] == '<pre-initialized>':
+                 proc = copy.copy(process)
+                 process['proc_name'] = 'com.qta.qt4a'
+                 return [proc]
+            else:
+                return [process]
+        ADB.list_process = mock.Mock(side_effect=mock_list_process)
+        adb._logcat_thread_func([])
+
+
 if __name__ == '__main__':
     unittest.main()
     

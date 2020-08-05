@@ -607,8 +607,10 @@ class ADB(object):
 
                             for i in range(len(self._log_list) - 1, -1, -1):
                                 # 修复之前记录的“<pre-initialized>”进程
-                                pre_process_name = b'[%s(%d)]' % (init_process,
-                                                                  item['pid'])
+                                pre_process_name = '[%s(%d)]' % (init_process,
+                                                                 item['pid'])
+                                pre_process_name = pre_process_name.encode(
+                                    'utf8')
                                 if not pre_process_name in self._log_list[i]:
                                     continue
                                 if process_list:
@@ -631,11 +633,13 @@ class ADB(object):
                                         del self._log_list[i]
                                 else:
                                     # 直接替换
-                                    self._log_list[
-                                        i] = self._log_list[i].replace(
-                                            pre_process_name,
-                                            ('[%s(%d)]' %
-                                             (item['proc_name'], item['pid'])))
+                                    new_process_name = '[%s(%d)]' % (
+                                        item['proc_name'], item['pid'])
+                                    new_process_name = new_process_name.encode(
+                                        'utf8')
+                                    self._log_list[i] = self._log_list[
+                                        i].replace(pre_process_name,
+                                                   new_process_name)
                     pid_dict[item['pid']] = item['proc_name']
 #                     if item['proc_name'] in init_process_list and item['pid'] != zygote_pid:
 #                         pid_dict[item['pid']] += '(%d)' % item['pid']
