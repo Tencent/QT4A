@@ -23,6 +23,7 @@ except:
 import copy
 import os
 import shlex
+import sys
 import tempfile
 import threading
 import time
@@ -383,7 +384,22 @@ u0_a1308  24887 1     9272   448   ffffffff 00000000 S /data/data/com.tencent.ni
 class TestADB(unittest.TestCase):
     '''ADB类测试用例
     '''
-    
+
+    def test_get_adb_path(self):
+        import qt4a.androiddriver.adb
+        if sys.platform == 'win32':
+            path = u'中文;'
+            if sys.version_info[0] == 2:
+                path = path.encode('gbk')
+            os.environ['PATH'] = path + os.environ['PATH']
+        else:
+            os.environ['PATH'] = '中文:' + os.environ['PATH']
+        if sys.version_info[0] == 2:
+            reload(qt4a.androiddriver.adb)
+        else:
+            import importlib
+            importlib.reload(qt4a.androiddriver.adb)
+
     def test_get_cpu_abi(self):
         for arch in ['armeabi-v7a', 'x86']:
             ADB.run_shell_cmd = mock.Mock(return_value=arch)
