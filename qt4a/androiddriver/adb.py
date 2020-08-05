@@ -45,7 +45,13 @@ def get_adb_path():
         sep = ':'
         file_name = 'adb'
 
-    for root in os.environ.get('PATH').split(sep):
+    path = os.environ.get('PATH')
+    if isinstance(path, bytes):
+        try:
+            path = path.decode('utf8')
+        except:
+            path = path.decode('gbk')
+    for root in path.split(sep):
         adb_path = os.path.join(root, file_name)
         if os.path.exists(adb_path):  # 优先使用环境变量中指定的 adb
             return adb_path
