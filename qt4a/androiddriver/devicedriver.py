@@ -186,7 +186,10 @@ class DeviceDriver(object):
     def _get_current_window(self):
         '''使用dumpsys命令获取当前窗口
         '''
-        result = self.adb.run_shell_cmd('dumpsys window windows')
+        if self.adb.get_sdk_version() >= 29:
+            result = self.adb.run_shell_cmd('dumpsys window visible-apps')
+        else:
+            result = self.adb.run_shell_cmd('dumpsys window')
         if result:
             line_list = result.split('\n')
             for line in line_list:
