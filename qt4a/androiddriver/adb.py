@@ -788,16 +788,15 @@ class ADB(object):
         )
 
     def _check_need_quote(self, timeout=20):
-        """
+        """check whether need quotation marks out of cmdline
         """
         cmd = self._gen_su_cmdline("ls -l /data/data", self._root_state)
-        # 联想S899T上发现不加引号返回结果为空
         result = self.run_shell_cmd(cmd, timeout=timeout)
-        if result.find("com.android.phone") >= 0:
-            self._need_quote = True
+        if "com.android.phone" in result:
+            self._need_quote = False
         else:
             logger.debug(result)
-            self._need_quote = False
+            self._need_quote = True
 
     def _set_system_writable(self):
         """修改system分区可写
