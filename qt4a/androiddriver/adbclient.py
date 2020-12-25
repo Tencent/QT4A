@@ -264,6 +264,8 @@ class ADBClient(object):
                         return "", err_msg
                     elif "device offline" in err_msg:
                         return "", "error: device offline"
+                    elif "Permission denied" in err_msg:
+                        return "", "error: %s" % err_msg
                     elif (
                         "Bad response" in err_msg
                         or "Device or resource busy" in err_msg
