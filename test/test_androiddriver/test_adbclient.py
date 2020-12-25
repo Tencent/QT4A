@@ -163,7 +163,7 @@ class MockADBServer(object):
             assert(len(data) == data_len + 8)
             file_path = data[8:]
             context.file_path = file_path
-            response = b'STAT\x01\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00'
+            response = b'STAT\x01\x00\x00\x00\x00\x00\x00\x01\x00\x00\x00\x00'
         elif data.startswith(b'SEND'):
             data_len = struct.unpack('I', data[4:8])[0]
             # assert(len(data) == data_len + 8)
