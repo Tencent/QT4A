@@ -154,12 +154,10 @@ def copy_android_driver(device_id_or_adb, force=False, root_path=None, enable_ac
 
     cpu_abi = adb.get_cpu_abi()
     print("Current CPU arch: %s" % cpu_abi)
-    use_pie = False
-    if adb.get_sdk_version() >= 21 and cpu_abi != "arm64-v8a":
-        use_pie = True
+    # use_pie = False
+    # if adb.get_sdk_version() >= 21 and cpu_abi != "arm64-v8a":
+    #     use_pie = True
 
-    # file_list = [os.path.join(cpu_abi, 'droid_inject'), os.path.join(cpu_abi, 'libdexloader.so'), os.path.join(
-    #     cpu_abi, 'screenkit'), os.path.join(cpu_abi, 'libandroidhook.so'), 'inject', 'AndroidSpy.jar', 'SpyHelper.jar', 'SpyHelper.sh']
     file_list = [
         os.path.join(cpu_abi, "droid_inject"),
         os.path.join(cpu_abi, "libdexloader.so"),
@@ -184,8 +182,8 @@ def copy_android_driver(device_id_or_adb, force=False, root_path=None, enable_ac
 
     for file in file_list:
         file_path = os.path.join(root_path, file)
-        if use_pie and not "." in file and os.path.exists(file_path + "_pie"):
-            file_path += "_pie"
+        # if use_pie and not "." in file and os.path.exists(file_path + "_pie"):
+        #     file_path += "_pie"
         if not os.path.exists(file_path):
             continue
         save_name = os.path.split(file)[-1]
