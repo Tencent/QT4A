@@ -163,7 +163,7 @@ def copy_android_driver(device_id_or_adb, force=False, root_path=None, enable_ac
     file_list = [
         os.path.join(cpu_abi, "droid_inject"),
         os.path.join(cpu_abi, "libdexloader.so"),
-        os.path.join(cpu_abi, "screekit"),
+        os.path.join(cpu_abi, "screenkit"),
         "inject",
         "AndroidSpy.jar",
         "SpyHelper.jar",
