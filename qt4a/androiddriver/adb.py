@@ -450,8 +450,7 @@ class ADB(object):
         wait_period = 5
         while not boot_complete and (attempts * wait_period) < _timeout:
             output = self.run_shell_cmd("getprop sys.boot_completed", retry_count=1)
-            output = output.strip()
-            if output == "1":
+            if output and output.strip() == "1":
                 boot_complete = True
             else:
                 time.sleep(wait_period)
@@ -962,37 +961,40 @@ class ADB(object):
                                 "system", cmdline, retry_count=1, timeout=timeout
                             )
 
+                if isinstance(ret, bytes):
+                    ret = ret.decode("utf8")
                 logger.debug(ret)
-                if b"Success" in ret:
+
+                if "Success" in ret:
                     return True, ret
-                elif i > 1 and b"INSTALL_FAILED_ALREADY_EXISTS" in ret:
+                elif i > 1 and "INSTALL_FAILED_ALREADY_EXISTS" in ret:
                     # 出现至少一次超时，认为安装完成
                     return True, "Success"
-                elif b"INSTALL_FAILED_ALREADY_EXISTS" in ret:
+                elif "INSTALL_FAILED_ALREADY_EXISTS" in ret:
                     # 尝试覆盖安装
                     return self._install_apk(apk_path, package_name, True)
                 elif (
-                    b"INSTALL_PARSE_FAILED_NO_CERTIFICATES" in ret
-                    or b"INSTALL_PARSE_FAILED_UNEXPECTED_EXCEPTION" in ret
+                    "INSTALL_PARSE_FAILED_NO_CERTIFICATES" in ret
+                    or "INSTALL_PARSE_FAILED_UNEXPECTED_EXCEPTION" in ret
                 ):
                     if i >= 2:
                         return False, ret
                     time.sleep(10)
                     continue
-                elif b"INSTALL_FAILED_UPDATE_INCOMPATIBLE" in ret:
+                elif "INSTALL_FAILED_UPDATE_INCOMPATIBLE" in ret:
                     # 强制卸载应用
                     self.uninstall_app(package_name)
                     return self._install_apk(apk_path, package_name, False)
                 elif (
-                    b"INSTALL_PARSE_FAILED_INCONSISTENT_CERTIFICATES" in ret
-                    or b"INSTALL_FAILED_DEXOPT" in ret
+                    "INSTALL_PARSE_FAILED_INCONSISTENT_CERTIFICATES" in ret
+                    or "INSTALL_FAILED_DEXOPT" in ret
                 ):
                     # 必须卸载安装
                     if not reinstall:
                         return False, ret
                     self.uninstall_app(package_name)
                     return self._install_apk(apk_path, package_name, False)
-                elif b"INSTALL_FAILED_INSUFFICIENT_STORAGE" in ret:
+                elif "INSTALL_FAILED_INSUFFICIENT_STORAGE" in ret:
                     # 有可能是存在/data/app-lib/packagename-1目录导致的
                     for i in (1, 2):
                         dir_path = "/data/app-lib/%s-%d" % (package_name, i)
@@ -1006,8 +1008,8 @@ class ADB(object):
                     else:
                         return False, ret
                 elif (
-                    b"INSTALL_FAILED_UID_CHANGED" in ret
-                    or b"INSTALL_FAILED_INTERNAL_ERROR" in ret
+                    "INSTALL_FAILED_UID_CHANGED" in ret
+                    or "INSTALL_FAILED_INTERNAL_ERROR" in ret
                 ):
                     # /data/data目录下存在文件夹没有删除
                     dir_path = "/data/data/%s" % package_name
@@ -1019,10 +1021,10 @@ class ADB(object):
                         ):
                             break
                     continue
-                elif b"INSTALL_FAILED_CANCELLED_BY_USER" in ret:
+                elif "INSTALL_FAILED_CANCELLED_BY_USER" in ret:
                     # 一般是ROM需要手动确认安装，改用system权限安装
                     ret = self.run_shell_cmd("su system %s" % cmdline, timeout=timeout)
-                    if b"Success" in ret:
+                    if "Success" in ret:
                         return True, ret
                 else:
                     return False, ret
@@ -1053,9 +1055,8 @@ class ADB(object):
         else:
             result = self._install_apk(tmp_path, package_name, reinstall)
         # logger.debug(result)
-
         if result[0] == False:
-            if not b"Failure" in result[1]:
+            if not "Failure" in result[1]:
                 # 一般这种情况都是由于adb server意外退出导致，此时安装过程还会继续
                 logger.warn("install app: %r" % result[1])
                 timeout = 30
