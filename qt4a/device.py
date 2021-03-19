@@ -747,6 +747,7 @@ class Device(object):
         pat = re.compile(r'^\[(.+)\(\d+\)\]\s+\[.+\]\s+\w/(.+)\(\s*\d+\):\s+(.+)$')
         log_pat = re.compile(pattern)
         log_list = self.adb.get_log(False)
+        log_list = [i.decode("utf-8") for i in log_list]
         result_list = []
         k = 0
         for i in range(len(log_list) - 1, -1, -1):
