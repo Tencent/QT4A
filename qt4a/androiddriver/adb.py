@@ -450,8 +450,7 @@ class ADB(object):
         wait_period = 5
         while not boot_complete and (attempts * wait_period) < _timeout:
             output = self.run_shell_cmd("getprop sys.boot_completed", retry_count=1)
-            output = output.strip()
-            if output == "1":
+            if output and output.strip() == "1":
                 boot_complete = True
             else:
                 time.sleep(wait_period)
