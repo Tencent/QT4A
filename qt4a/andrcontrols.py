@@ -1959,11 +1959,16 @@ class ChromiumWebView(WebkitWebView):
         frame_id = None
         if frame_xpaths:
             frame_id = self._get_frame_id_by_xpath(frame_xpaths)
-        try:
-            return self._page_debugger.runtime.eval_script(frame_id, script)
-        except util.JavaScriptError as e:
-            from qt4w.util import JavaScriptError
-            raise JavaScriptError(frame_xpaths, e.message)
+        for _ in range(3):
+            try:
+                return self._page_debugger.runtime.eval_script(frame_id, script)
+            except util.ConnectionClosedError as e:
+                self._page_debugger = self.get_debugger()
+            except util.JavaScriptError as e:
+                from qt4w.util import JavaScriptError
+                raise JavaScriptError(frame_xpaths, e.message)
+        else:
+            raise util.ConnectionClosedError("Connection Closed")
         
 class ViewPager(ViewGroup):
     '''横向滚动视图

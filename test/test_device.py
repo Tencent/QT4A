@@ -116,6 +116,16 @@ class TestDevice(unittest.TestCase):
         ADB.is_rooted = mock.Mock(return_value=True)
         self.assertEqual(device.is_file_exists('/data/local/tmp/1.txt'), True)
 
+    def test_read_logcat(self):
+        device = self._get_device()
+        ADB.is_rooted = mock.Mock(return_value=True)
+        adb = device.adb
+        adb.start_logcat()
+        adb.insert_logcat('test', 2021, '0101', '10:59:42.899', 'I', 'test', 1, '中文')
+        adb.insert_logcat('test', 2021, '0101', '10:59:42.899', 'I', 'test', 1, '测试使用')
+        print(adb.get_log(False))
+        self.assertEqual(device.read_logcat(tag='test', process_name_pattern='', pattern=''), [])
+
 
 class TestLocalDeviceProvider(unittest.TestCase):
     '''LocalDeviceProvider类测试用例

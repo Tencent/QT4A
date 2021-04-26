@@ -611,7 +611,7 @@ class AndroidDriver(object):
             else:
                 raise SocketError("Connect Failed")
         if "Error" in result:
-            if result["Error"] == u"控件已失效":
+            if result["Error"] == u"控件已失效" or result["Error"] == u"Control expired":
                 raise ControlExpiredError(result["Error"])
             elif result["Error"] == u"控件类型错误":
                 control_type = self.get_control_type(kwds["Control"])
