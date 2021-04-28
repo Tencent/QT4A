@@ -20,6 +20,8 @@ import json
 import re
 import os
 import time
+import traceback
+
 import six
 from qt4a.androiddriver.adb import ADB
 from qt4a.androiddriver.clientsocket import DirectAndroidSpyClient
@@ -127,8 +129,10 @@ class DeviceDriver(object):
         :param pkg_md5:   安装包md5
         :type pkg_md5:    string
         """
+        timeout = 60
         ret = self.run_driver_cmd(
-            "isPackageInstalled", pkg_name, pkg_size, pkg_md5, root=self.adb.is_rooted()
+            "isPackageInstalled", pkg_name, pkg_size, pkg_md5, root=self.adb.is_rooted(),
+            timeout=timeout
         )
         return "true" in ret
 
@@ -295,12 +299,32 @@ class DeviceDriver(object):
         width, height = result.split(",")
         return int(width), int(height)
 
+    def _take_screen_shot(self, path, _format='png', quality=90):
+        """
+        使用android系统命令截图
+        # todo:使用android的java接口替换该方案
+        """
+        # result = self.adb.run_shell_cmd(
+        #     "sh %s/SpyHelper.sh takeScreenshot %s %s %s" % (qt4a_path, path, _format, quality), self.adb.is_rooted())
+        # if 'true' in result:
+        #     return True
+        # logger.warn("Take screenshot by SpyHelper.sh failed: %s" % result)
+        try:
+            result = self.adb.run_shell_cmd("screencap -p", binary_output=True)
+            return result
+        except Exception as e:
+            logger.warn("Take screenshot failed: %s" % traceback.format_exc(e))
+            return False
+
     def take_screen_shot(self, path, quality=90):
         """截屏
         """
-        result = self.adb.run_shell_cmd(
-            "%s/screenshot capture -q %s" % (qt4a_path, quality), binary_output=True
-        )
+        if self.adb.get_sdk_version() >= 29:
+            result = self._take_screen_shot(path)
+        else:
+            result = self.adb.run_shell_cmd(
+                "%s/screenshot capture -q %s" % (qt4a_path, quality), binary_output=True
+            )
         # 为避免pull文件耗时，直接写到stdout
         if len(result) < 256:
             logger.warn("Take screenshot failed: %s" % result)
