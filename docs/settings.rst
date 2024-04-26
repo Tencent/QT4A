@@ -9,7 +9,7 @@ QT4A配置项
 
 当用例需要在测试环境中才能顺利执行时，你可能需要对手机配置HOST，AndroidTestBase中已实现这样的功能。用例开始会调用到AndroidTestBase的acquire_device申请设备，在该接口中实现了HOST的配置。如果你想开启配置HOST的功能，只需要增加下面的配置项::
 
-      QT4A_DEVICE_HOSTS=''103.22.4.120 a.b.c.com\n103.12.4.120 c.d.com''
+      QT4A_DEVICE_HOSTS="103.22.4.120 a.b.c.com\n103.12.4.120 c.d.com"
       
 具体的HOST内容请修改为你测试的HOST，那么，在调用接口acquire_device申请到设备时，就会将你设置的HOST自动配置到手机环境中。同时，用例执行结束时，也会自动在测试基类的post_test中恢复Android设备的HOST环境。
 

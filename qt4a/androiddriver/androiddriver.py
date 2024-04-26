@@ -18,28 +18,28 @@
 from __future__ import print_function
 
 import base64
-import json
 import re
 import os
-import six
-import sys
 import tempfile
 import threading
 import time
 
+from qt4a.androiddriver.adb import ADB
 from qt4a.androiddriver.clientsocket import DirectAndroidSpyClient
 from qt4a.androiddriver.devicedriver import DeviceDriver
 from qt4a.androiddriver.util import (
-    logger,
-    general_encode,
-    SocketError,
+    AndroidPackage,
     AndroidSpyError,
     ControlAmbiguousError,
     ControlExpiredError,
     ProcessExitError,
     QT4ADriverNotInstalled,
+    SocketError,
     Mutex,
+    logger,
+    general_encode,
     extract_from_zipfile,
+    version_cmp,
 )
 
 
@@ -85,8 +85,6 @@ class EnumCommand(object):
 
 
 def install_qt4a_helper(adb, root_path):
-    from qt4a.androiddriver.util import AndroidPackage, version_cmp
-
     qt4a_helper_package = "com.test.androidspy"
     apk_path = os.path.join(root_path, "QT4AHelper.apk")
     if adb.get_package_path(qt4a_helper_package):
@@ -103,8 +101,6 @@ def install_qt4a_helper(adb, root_path):
 def copy_android_driver(device_id_or_adb, force=False, root_path=None, enable_acc=True):
     """测试前的测试桩拷贝
     """
-    from qt4a.androiddriver.adb import ADB
-
     if isinstance(device_id_or_adb, ADB):
         adb = device_id_or_adb
     else:
@@ -137,7 +133,7 @@ def copy_android_driver(device_id_or_adb, force=False, root_path=None, enable_ac
 
         if (
             version
-            and not "No such file or directory" in version
+            and "No such file or directory" not in version
             and current_version <= int(version)
         ):
             install_qt4a_helper(adb, root_path)  # 避免QT4A助手被意外删除的情况
@@ -147,7 +143,7 @@ def copy_android_driver(device_id_or_adb, force=False, root_path=None, enable_ac
 
     try:
         adb.chmod(dst_path[:-1], "777")
-    except:
+    except Exception:
         pass
 
     rooted = adb.is_rooted()
@@ -167,12 +163,16 @@ def copy_android_driver(device_id_or_adb, force=False, root_path=None, enable_ac
         "SpyHelper.jar",
         "SpyHelper.sh",
     ]
-    if cpu_abi == "arm64-v8a":
+
+    if adb.get_sdk_version() >= 21:
+        file_list.append(os.path.join(cpu_abi, "libandroidhook.so"))
+
+    if cpu_abi in ("x86_64", "arm64-v8a"):
         file_list.append(os.path.join(cpu_abi, "droid_inject64"))
         file_list.append(os.path.join(cpu_abi, "libdexloader64.so"))
         file_list.append("inject64")
-    if adb.get_sdk_version() >= 21:
-        file_list.append(os.path.join(cpu_abi, "libandroidhook_art.so"))
+        if adb.get_sdk_version() >= 21:
+            file_list.append(os.path.join(cpu_abi, "libandroidhook64.so"))
 
     if rooted and adb.is_selinux_opened():
         # 此时如果还是开启状态说明关闭selinux没有生效,主要是三星手机上面
@@ -187,8 +187,6 @@ def copy_android_driver(device_id_or_adb, force=False, root_path=None, enable_ac
         if not os.path.exists(file_path):
             continue
         save_name = os.path.split(file)[-1]
-        if save_name.endswith("_art.so"):
-            save_name = save_name.replace("_art", "")
         adb.push_file(file_path, dst_path + save_name)
 
     adb.chmod("%sdroid_inject" % dst_path, 755)
@@ -196,7 +194,7 @@ def copy_android_driver(device_id_or_adb, force=False, root_path=None, enable_ac
     adb.chmod("%sscreenkit" % dst_path, 755)
     adb.run_shell_cmd("ln -s %sscreenkit %sscreenshot" % (dst_path, dst_path))
 
-    if cpu_abi == "arm64-v8a":
+    if cpu_abi in ("arm64-v8a", "x86_64"):
         adb.chmod("%sdroid_inject64" % dst_path, 755)
         adb.chmod("%sinject64" % dst_path, 755)
 
@@ -269,7 +267,7 @@ def copy_android_driver(device_id_or_adb, force=False, root_path=None, enable_ac
             )
             adb.chmod("%scache/AndroidSpy.dex" % dst_path, 666)
     else:
-        if not "usage:" in adb.run_shell_cmd("sh %sSpyHelper.sh" % dst_path):
+        if "usage:" not in adb.run_shell_cmd("sh %sSpyHelper.sh" % dst_path):
             adb.mkdir("%scache/dalvik-cache" % dst_path, 777)
 
     if rooted and adb.is_selinux_opened() and adb.get_sdk_version() >= 23:
@@ -306,12 +304,12 @@ def copy_android_driver(device_id_or_adb, force=False, root_path=None, enable_ac
                 "com.test.androidspy/com.test.androidspy.service.QT4AAccessibilityService",
             )
             device_driver.modify_system_setting("secure", "accessibility_enabled", 1)
-    except:
+    except Exception:
         logger.exception("set default input method failed")
     try:
         device_driver.modify_system_setting("system", "time_12_24", 24)
         device_driver.modify_system_setting("system", "screen_off_timeout", 600 * 1000)
-    except:
+    except Exception:
         logger.exception("set system time failed")
 
 
@@ -583,7 +581,6 @@ class AndroidDriver(object):
 
         if cmd_type != EnumCommand.CmdHello:
             self._safe_init_driver()  # 确保测试桩连接正常
-
         result = self._client.send_command(cmd_type, **kwds)
         if result == None:
             pid = self._adb.get_pid(self._process["name"])
@@ -633,7 +630,6 @@ class AndroidDriver(object):
                 logger.exception("init error")
                 time.sleep(2)
                 continue
-            # self._enable_debug()
             if not "Result" in result:
                 raise RuntimeError("Server error")
             items = result["Result"].split(":")

@@ -79,7 +79,7 @@ class DeviceDriver(object):
         :type  cmd:  string
         """
         args = [
-            ('"%s"' % (it.replace('"', r"\"") if isinstance(it, str) else it))
+            ("'%s'" % (it.replace("'", r"\'") if isinstance(it, str) else it))
             for it in args
         ]
         result = self.adb.run_shell_cmd(
@@ -131,8 +131,12 @@ class DeviceDriver(object):
         """
         timeout = 60
         ret = self.run_driver_cmd(
-            "isPackageInstalled", pkg_name, pkg_size, pkg_md5, root=self.adb.is_rooted(),
-            timeout=timeout
+            "isPackageInstalled",
+            pkg_name,
+            pkg_size,
+            pkg_md5,
+            root=self.adb.is_rooted(),
+            timeout=timeout,
         )
         return "true" in ret
 
@@ -235,7 +239,7 @@ class DeviceDriver(object):
         if result:
             line_list = result.split("\n")
             for line in line_list:
-                if "mCurrentFocus" in line or "mFocusedWindow" in line:
+                if "mCurrentFocus=Window" in line or "mFocusedWindow=Window" in line:
                     result = line
                     break
         pattern1 = re.compile(r"mCurrentFocus=Window{(.+)}")
@@ -247,7 +251,7 @@ class DeviceDriver(object):
         else:
             logger.info("Get current window by dumpsys failed: %s" % result)
             return None
-        result = ret.group(1).split(" ")[-1]
+        result = ret.group(1).split(" ")[2]
         if "/" in result:
             result = result.split("/")[-1]
         if "Application Not Responding" in ret.group(1):
@@ -299,7 +303,7 @@ class DeviceDriver(object):
         width, height = result.split(",")
         return int(width), int(height)
 
-    def _take_screen_shot(self, path, _format='png', quality=90):
+    def _take_screen_shot(self, path, _format="png", quality=90):
         """
         使用android系统命令截图
         # todo:使用android的java接口替换该方案
@@ -310,7 +314,12 @@ class DeviceDriver(object):
         #     return True
         # logger.warn("Take screenshot by SpyHelper.sh failed: %s" % result)
         try:
-            result = self.adb.run_shell_cmd("screencap -p", binary_output=True)
+            img_path = qt4a_path + "/screen.png"
+            # result = self.adb.run_shell_cmd("screencap -p", binary_output=True)
+            screen_img = self.adb.run_shell_cmd("screencap -p %s" % (img_path))
+            pull_img = self.adb.pull_file(img_path, path)
+            with open(path, "rb") as fp:
+                result = fp.read()
             return result
         except Exception as e:
             logger.warn("Take screenshot failed: %s" % traceback.format_exc(e))
@@ -1195,6 +1204,31 @@ class DeviceDriver(object):
         """
         result = self.run_driver_cmd("unzip", zip_file, save_dir)
         return "true" in result
+
+    def dump_class_list(self, package_name, save_path, filter=None):
+        """Dump应用中的类列表
+
+        :param package_name: 应用包名
+        :type  package_name: string
+        :param save_path: 保存路径
+        :type  save_path: string
+        :param filter: 类名过滤器
+        "type  filter: string
+        """
+        tmp_save_path = "/data/local/tmp/R_id.txt"
+        result = self.run_driver_cmd(
+            "dumpClassList", package_name, tmp_save_path, filter or ""
+        )
+        logger.debug(
+            "[%s] Dump class of %s result: \n%s"
+            % (self.__class__.__name__, package_name, result)
+        )
+        self.adb.chmod(tmp_save_path, 755)
+        cmdline = "cp %s '%s'" % (tmp_save_path, save_path)
+        if self.adb.is_rooted():
+            self.adb.run_shell_cmd(cmdline, root=True)
+        else:
+            self.adb.run_as(package_name, cmdline)
 
 
 if __name__ == "__main__":
