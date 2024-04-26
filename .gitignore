@@ -2,3 +2,5 @@ build/
 dist/
 qt4a.egg-info/
 *.pyc
+.env2/
+.env3/
