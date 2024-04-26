@@ -26,10 +26,8 @@ import sys
 import threading
 import time
 
-from pkg_resources import iter_entry_points
 from qt4a.androiddriver.adbclient import ADBClient
 from qt4a.androiddriver.util import (
-    Singleton,
     Deprecated,
     logger,
     ThreadEx,
@@ -42,6 +40,7 @@ from qt4a.androiddriver.util import (
     enforce_utf8_decode,
     general_encode,
     time_clock,
+    get_command_path
 )
 
 try:
@@ -52,25 +51,12 @@ cur_path = os.path.dirname(os.path.abspath(__file__))
 
 
 def get_adb_path():
-    if sys.platform == "win32":
-        sep = ";"
-        file_name = "adb.exe"
-    else:
-        sep = ":"
-        file_name = "adb"
-
-    path = os.environ.get("PATH")
-    if isinstance(path, bytes):
-        try:
-            path = path.decode("utf8")
-        except:
-            path = path.decode("gbk")
-    for root in path.split(sep):
-        adb_path = os.path.join(root, file_name)
-        if os.path.exists(adb_path):  # 优先使用环境变量中指定的 adb
-            return adb_path
-
-    return os.path.join(cur_path, "tools", "adb", sys.platform, file_name)
+    adb_path = get_command_path("adb") # 优先使用环境变量中指定的 adb
+    if not adb_path:
+        adb_path = os.path.join(cur_path, "tools", "adb", sys.platform, "adb")
+        if sys.platform == "win32":
+            adb_path += ".exe"
+    return adb_path
 
 
 adb_path = get_adb_path()
@@ -86,7 +72,7 @@ def is_adb_server_opend(host="localhost"):
         sock.bind((host, 5037))
         sock.close()
         return False
-    except:
+    except Exception:
         return True
 
 
@@ -458,7 +444,7 @@ class ADB(object):
         if not boot_complete:
             raise RuntimeError("dev.bootcomplete 标志在  %s 秒后仍未设置，手机重启失败" % _timeout)
 
-    def start_logcat(self, process_list=[], params=""):
+    def start_logcat(self, process_list=[], params="", clear=True):
         """运行logcat进程
         :param process_list: 要捕获日志的进程名或进程ID列表，为空则捕获所有进程
         :type process_list:  list
@@ -469,7 +455,8 @@ class ADB(object):
         if self._start_count > 1:
             return
         logger.debug("[ADB] start logcat")
-        self.run_shell_cmd("logcat -c " + params)  # 清除缓冲区
+        if clear:
+            self.run_shell_cmd("logcat -c " + params)  # 清除缓冲区
         if not hasattr(self, "_log_list"):
             self._log_list = []
         self._logcat_running = True
@@ -549,7 +536,7 @@ class ADB(object):
     def add_logcat_callback(self, callback):
         """添加logcat回调
         """
-        if not callback in self._logcat_callbacks:
+        if callback not in self._logcat_callbacks:
             self._logcat_callbacks.append(callback)
 
     def remove_logcat_callback(self, callback):
@@ -655,7 +642,7 @@ class ADB(object):
 
             init_process_list = ["<pre-initialized>", "zygote"]
 
-            if not pid in pid_dict.keys():
+            if pid not in pid_dict.keys():
                 for item in self.list_process():
                     if (
                         zygote_pid == 0
@@ -679,7 +666,7 @@ class ADB(object):
                                     item["pid"],
                                 )
                                 pre_process_name = pre_process_name.encode("utf8")
-                                if not pre_process_name in self._log_list[i]:
+                                if pre_process_name not in self._log_list[i]:
                                     continue
                                 if process_list:
                                     del_flag = True
@@ -715,7 +702,7 @@ class ADB(object):
                     pid_dict[item["pid"]] = item["proc_name"]
                 #                     if item['proc_name'] in init_process_list and item['pid'] != zygote_pid:
                 #                         pid_dict[item['pid']] += '(%d)' % item['pid']
-                if not pid in pid_dict.keys():
+                if pid not in pid_dict.keys():
                     filter_pid_list.append(pid)
                     continue
 
@@ -1178,6 +1165,28 @@ class ADB(object):
         if len(extra_str) > 0:
             extra_str = extra_str[:-1]
         return extra_str
+    
+    @encode_wrap
+    def get_package_launcher_activity(self, package_name):
+        """获取一个应用的LAUNCHER activity
+        package_name: 包名
+        """
+        if not package_name:
+            raise RuntimeError("Invalid package name")
+
+        command = 'dumpsys package {}'.format(package_name)
+        result = self.run_shell_cmd(command, timeout=15, retry_count=3)
+        
+        res = re.search(
+            r'android.intent.action.MAIN:.*?({}.*?) filter .*? '
+            r'Action: "android.intent.action.MAIN".*?Category: '
+            r'"android.intent.category.LAUNCHER"'.format(package_name),
+            result, 
+            re.S
+        )
+        if not res:
+            raise RuntimeError("package LAUNCHER activity not found")
+        return res.group(1)
 
     @encode_wrap
     def start_activity(
@@ -1407,9 +1416,9 @@ class ADB(object):
                     new_attr = dir["attr"]
                     break
 
-        if new_attr != _parse(attr):
-            logger.warn("chmod failed: %r(%s)" % (ret, new_attr))
-            return self.chmod(file_path, attr)
+        # if new_attr != _parse(attr):
+        #     logger.warn("chmod failed: %r(%s)" % (ret, new_attr))
+        #     return self.chmod(file_path, attr)
         return new_attr
 
     def chown(self, file_path, uid, gid):
