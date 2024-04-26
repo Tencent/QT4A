@@ -176,7 +176,7 @@ fmt = logging.Formatter(
     "%(asctime)s %(thread)d %(message)s"
 )  # %(filename)s %(funcName)s
 logger.handlers[0].setFormatter(fmt)
-# logger.handlers[0].setLevel(logging.WARNING)  # 屏幕日志级别为WARNING
+logger.handlers[0].setLevel(logging.WARNING)  # 屏幕日志级别为WARNING
 # logger.addHandler(logging.StreamHandler(sys.stderr))
 
 logger_path = gen_log_path()
