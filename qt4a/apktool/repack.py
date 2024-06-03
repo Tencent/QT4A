@@ -304,8 +304,8 @@ def repack_apk(
             print("WARNING: APK can only be installed in android above 5.0")
             manifest.min_sdk_version = 21
 
-        if manifest.target_sdk_version > 27:
-            manifest.target_sdk_version = 27
+        # if manifest.target_sdk_version > 27:
+        #     manifest.target_sdk_version = 27
 
         manifest.save()
 

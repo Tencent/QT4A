@@ -514,7 +514,11 @@ class AndroidApp(object):
         app_root_path = "/data/data/%s" % self.package_name
         r_id_file = "R_id.txt"
         save_path = app_root_path + "/" + r_id_file
-        _, file_list = self._device.adb.list_dir(app_root_path)
+        run_as = None
+        if not self._device.is_rooted():
+            run_as = self.package_name
+        _, file_list = self._device.adb.list_dir(app_root_path, run_as)
+
         for it in file_list:
             if it["name"] == r_id_file:
                 logger.info(

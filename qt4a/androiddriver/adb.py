@@ -40,7 +40,7 @@ from qt4a.androiddriver.util import (
     enforce_utf8_decode,
     general_encode,
     time_clock,
-    get_command_path
+    get_command_path,
 )
 
 try:
@@ -51,7 +51,7 @@ cur_path = os.path.dirname(os.path.abspath(__file__))
 
 
 def get_adb_path():
-    adb_path = get_command_path("adb") # 优先使用环境变量中指定的 adb
+    adb_path = get_command_path("adb")  # 优先使用环境变量中指定的 adb
     if not adb_path:
         adb_path = os.path.join(cur_path, "tools", "adb", sys.platform, "adb")
         if sys.platform == "win32":
@@ -1165,7 +1165,7 @@ class ADB(object):
         if len(extra_str) > 0:
             extra_str = extra_str[:-1]
         return extra_str
-    
+
     @encode_wrap
     def get_package_launcher_activity(self, package_name):
         """获取一个应用的LAUNCHER activity
@@ -1174,15 +1174,15 @@ class ADB(object):
         if not package_name:
             raise RuntimeError("Invalid package name")
 
-        command = 'dumpsys package {}'.format(package_name)
+        command = "dumpsys package {}".format(package_name)
         result = self.run_shell_cmd(command, timeout=15, retry_count=3)
-        
+
         res = re.search(
-            r'android.intent.action.MAIN:.*?({}.*?) filter .*? '
+            r"android.intent.action.MAIN:.*?({}.*?) filter .*? "
             r'Action: "android.intent.action.MAIN".*?Category: '
             r'"android.intent.category.LAUNCHER"'.format(package_name),
-            result, 
-            re.S
+            result,
+            re.S,
         )
         if not res:
             raise RuntimeError("package LAUNCHER activity not found")
@@ -1449,21 +1449,28 @@ class ADB(object):
         if mod != None:
             self.chmod(dir_path, mod)
 
-    def list_dir(self, dir_path):
+    def list_dir(self, dir_path, run_as=None):
         """列取目录
         """
         if " " in dir_path:
             dir_path = '"%s"' % dir_path
-        use_root = self.is_rooted()
-        if (
-            use_root
-            and dir_path.startswith("/sdcard")
-            or dir_path.startswith("/storage/")
-            or dir_path.startswith("/mnt/")
-        ):
-            # 部分手机上发现用root权限访问/sdcard路径不一致
-            use_root = False
-        result = self.run_shell_cmd("ls -l %s" % dir_path, use_root)
+        cmdline = "ls -l %s" % dir_path
+
+        if run_as:
+            result = self.run_as(run_as, cmdline)
+        else:
+            use_root = self.is_rooted()
+
+            if (
+                use_root
+                and dir_path.startswith("/sdcard")
+                or dir_path.startswith("/storage/")
+                or dir_path.startswith("/mnt/")
+            ):
+                # 部分手机上发现用root权限访问/sdcard路径不一致
+                use_root = False
+
+            result = self.run_shell_cmd(cmdline, use_root)
 
         if "Permission denied" in result:
             raise PermissionError(result)
