@@ -98,11 +98,13 @@ class EnumAttrType(object):
     ISOLATED_PROCESS = 'isolatedProcess', 0x10103a9
     SUPPORTS_RT1 = 'supportsRtl', 0x10103af
     CATEGORY_ATTR = 0x010103e8
+    USES_CLEARTEXT_TRAFFIC_ATTR = 'usesCleartextTraffic', 0x10104ec
     RESIZEABLE_ACTIVITY_ATTR = 'resizeableActivity', 0x10104f6
     NETWORK_SECURITY_CONFIG = 'networkSecurityConfig', 0x1010527
     COMPILE_SDK_VERSION_ATTR = 'compileSdkVersion', 0x01010572
     COMPILE_SDK_VERSION_CODENAME_ATTR = 'compileSdkVersionCodename', 0x01010573
     APP_COMPONENTFACTORY = 'appComponentFactory', 0x101057a
+    FOREGROUND_SERVICE_TYPE_ATTR = 'foregroundServiceType', 0x1010599
 
     @staticmethod
     def list():
