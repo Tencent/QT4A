@@ -214,6 +214,14 @@ def set_default_encoding(code="utf8"):
         sys.setdefaultencoding(code)
 
 
+def get_adb_server_port():
+    """获取adb server端口"""
+    port = os.environ.get("ANDROID_ADB_SERVER_PORT")
+    if port:
+        return int(port)
+    return 5037
+
+
 def get_command_path(command):
     sep = ":"
     if sys.platform == "win32":
