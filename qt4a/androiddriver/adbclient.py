@@ -25,7 +25,7 @@ import socket, select
 import struct
 import threading
 from io import BytesIO
-from qt4a.androiddriver.util import logger, utf8_encode, TimeoutError
+from qt4a.androiddriver.util import logger, utf8_encode, get_adb_server_port, TimeoutError
 
 SYNC_DATA_MAX = 64 * 1024
 
@@ -204,14 +204,14 @@ class ADBClient(object):
 
     instance_dict = {}
 
-    def __init__(self, server_addr="127.0.0.1", server_port=5037):
+    def __init__(self, server_addr="127.0.0.1", server_port=None):
         self._server_addr = server_addr
-        self._server_port = server_port
+        self._server_port = server_port or get_adb_server_port()
         self._sock = None
         self._lock = threading.Lock()
 
     @staticmethod
-    def get_client(host, port=5037):
+    def get_client(host, port=None):
         """根据主机名获取ADBClient实例
         """
         return ADBClient(host, port)

@@ -41,12 +41,14 @@ from qt4a.androiddriver.util import (
     general_encode,
     time_clock,
     get_command_path,
+    get_adb_server_port
 )
 
-try:
-    import _strptime  # time.strptime() is not thread-safed, so import _strptime first, otherwise it raises an AttributeError: _strptime_time
-except:
-    pass
+# try:
+#     import _strptime  # time.strptime() is not thread-safed, so import _strptime first, otherwise it raises an AttributeError: _strptime_time
+# except:
+#     pass
+
 cur_path = os.path.dirname(os.path.abspath(__file__))
 
 
@@ -62,14 +64,15 @@ def get_adb_path():
 adb_path = get_adb_path()
 
 
-def is_adb_server_opend(host="localhost"):
+def is_adb_server_opend(host="localhost", port=None):
     """判断ADB Server是否开启
     """
     import socket
+    port = port or get_adb_server_port()
 
     sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
     try:
-        sock.bind((host, 5037))
+        sock.bind((host, port))
         sock.close()
         return False
     except Exception:
@@ -181,9 +184,9 @@ class LocalADBBackend(IADBBackend):
 
         return LocalADBBackend(device_host, name)
 
-    def __init__(self, device_host, device_name, port=5037):
+    def __init__(self, device_host, device_name, port=None):
         self._device_host = device_host
-        self._device_host_port = port
+        self._device_host_port = port or get_adb_server_port()
         self._device_name = device_name
         self._adb_client = ADBClient.get_client(
             self._device_host, self._device_host_port
