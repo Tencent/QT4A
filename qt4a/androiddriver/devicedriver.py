@@ -314,13 +314,7 @@ class DeviceDriver(object):
         #     return True
         # logger.warn("Take screenshot by SpyHelper.sh failed: %s" % result)
         try:
-            img_path = qt4a_path + "/screen.png"
-            # result = self.adb.run_shell_cmd("screencap -p", binary_output=True)
-            screen_img = self.adb.run_shell_cmd("screencap -p %s" % (img_path))
-            pull_img = self.adb.pull_file(img_path, path)
-            with open(path, "rb") as fp:
-                result = fp.read()
-            return result
+            return self.adb.run_shell_cmd("screencap -p", binary_output=True)
         except Exception as e:
             logger.warn("Take screenshot failed: %s" % traceback.format_exc(e))
             return False

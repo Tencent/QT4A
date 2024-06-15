@@ -25,6 +25,7 @@ import tempfile
 
 from qt4a.apktool.apkfile import APKFile
 from qt4a.apktool.manifest import AndroidManifest
+from qt4a.apktool.zipalign import zipalign
 
 
 class MergeDexError(RuntimeError):
@@ -208,6 +209,24 @@ def resign_apk(apk_path):
     return save_path
 
 
+def resign_apk_v2(apk_path):
+    """重签名v2"""
+    cur_path = os.path.dirname(os.path.abspath(__file__))
+    key_file_path = os.path.join(cur_path, "tools", "qt4a.keystore")
+    jar_path = os.path.join(cur_path, "tools", "apksigner.jar")
+    cmdline = ["java", "-jar", jar_path, "sign", "--ks", key_file_path, apk_path]
+    logging.info(" ".join(cmdline))
+    proc = subprocess.Popen(
+        cmdline, stdin=subprocess.PIPE, stdout=subprocess.PIPE, stderr=subprocess.PIPE
+    )
+    out, err = proc.communicate(b"test@123")
+    if out:
+        logging.info("apksigner: " + general_decode(out))
+    if err:
+        logging.warn("apksigner: " + general_decode(err))
+    return apk_path
+
+
 def repack_apk(
     apk_path_or_list,
     provider_name,
@@ -219,8 +238,6 @@ def repack_apk(
     max_heap_size=0,
     force_append=False,
 ):
-    """
-    """
     if not isinstance(apk_path_or_list, list):
         apk_path_or_list = [apk_path_or_list]
     elif len(apk_path_or_list) == 0:
@@ -228,6 +245,7 @@ def repack_apk(
 
     apk_file_list = []
     signature_dict = {}
+    need_zipalign = False
     max_child_process = 38
     for it in apk_path_or_list:
         apk_file = APKFile(it)
@@ -238,29 +256,31 @@ def repack_apk(
         if vm_safe_mode is not None:
             manifest.vm_safe_mode = vm_safe_mode  # 修改安全模式
         if manifest.min_sdk_version >= 21 and not force_append:
-            print("Auto enabled force append mode")
+            logging.info("Auto enabled force append mode")
             force_append = True
         process_list = manifest.get_process_list()
         authorities = manifest.package_name + ".authorities"
-        print("Add provider %s" % provider_name)
+        logging.info("Add provider %s" % provider_name)
         manifest.add_provider(provider_name, authorities)  # 主进程
         for i, process in enumerate(process_list):
             if i < max_child_process:
                 sub_provider_name = provider_name + "$InnerClass" + str(i + 1)
-                print("Add provider %s in process %s" % (sub_provider_name, process))
+                logging.info(
+                    "Add provider %s in process %s" % (sub_provider_name, process)
+                )
                 manifest.add_provider(sub_provider_name, authorities + str(i), process)
             else:
-                print("Add provider ignore process %s" % process)
+                logging.info("Add provider ignore process %s" % process)
 
         if activity_list:
             for activity in activity_list:
-                print("Add activity %s" % activity["name"])
+                logging.info("Add activity %s" % activity["name"])
                 manifest.add_activity(
                     activity["name"], activity["exported"], activity["process"]
                 )
 
         # 合并dex文件
-        print("Merge dex %s" % merge_dex_path)
+        logging.info("Merge dex %s" % merge_dex_path)
         classes_dex_path = tempfile.mktemp(".dex")
 
         dex_index = 1
@@ -271,7 +291,7 @@ def repack_apk(
                 # 作为最后一个classes.dex
                 with open(merge_dex_path, "rb") as f:
                     apk_file.add_file(dex_file, f.read())
-                print("Save dex %s to %s" % (merge_dex_path, dex_file))
+                logging.info("Save dex %s to %s" % (merge_dex_path, dex_file))
                 break
 
             if force_append or low_memory:
@@ -287,38 +307,42 @@ def repack_apk(
                     classes_dex_path, [classes_dex_path, merge_dex_path], max_heap_size
                 )
             except TooManyMethodsError:
-                print("Merge dex into %s failed due to methods number" % dex_file)
+                logging.info(
+                    "Merge dex into %s failed due to methods number" % dex_file
+                )
                 dex_index += 1
             except OutOfMemoryError:
-                print("Merge dex into %s failed due to out of memory error" % dex_file)
+                logging.info(
+                    "Merge dex into %s failed due to out of memory error" % dex_file
+                )
                 low_memory = True
                 dex_index += 1
             else:
-                print("Merge dex into %s success" % dex_file)
+                logging.info("Merge dex into %s success" % dex_file)
                 with open(classes_dex_path, "rb") as f:
                     apk_file.add_file(dex_file, f.read())
                 break
 
         if dex_index > 1 and manifest.min_sdk_version < 21:
             # 合并进非主dex只支持5.0以上系统
-            print("WARNING: APK can only be installed in android above 5.0")
+            logging.warning("WARNING: APK can only be installed in android above 5.0")
             manifest.min_sdk_version = 21
 
-        # if manifest.target_sdk_version > 27:
-        #     manifest.target_sdk_version = 27
+        if manifest.target_sdk_version > 30:
+            need_zipalign = True
 
         manifest.save()
 
         if res_file_list:
             for src_path, dst_path in res_file_list:
                 with open(src_path, "rb") as f:
-                    print("Copy file %s => %s" % (src_path, dst_path))
+                    logging.info("Copy file %s => %s" % (src_path, dst_path))
                     data = f.read()
                     apk_file.add_file(dst_path, data)
 
         for it in apk_file.list_dir("META-INF"):
             if it.lower().endswith(".rsa"):
-                print("Signature file is %s" % it)
+                logging.info("Signature file is %s" % it)
                 tmp_rsa_path = tempfile.mktemp(".rsa")
                 apk_file.extract_file("META-INF/%s" % it, tmp_rsa_path)
                 orig_signature = get_apk_signature(tmp_rsa_path).strip()
@@ -337,7 +361,7 @@ def repack_apk(
     out_apk_list = []
 
     # 写入原始签名信息
-    print("Write original signatures: %s" % json.dumps(signature_dict))
+    logging.info("Write original signatures: %s" % json.dumps(signature_dict))
     temp_dir = tempfile.mkdtemp("-repack")
     for i, apk_file in enumerate(apk_file_list):
         apk_file.add_file(
@@ -348,7 +372,15 @@ def repack_apk(
         apk_file.save(tmp_apk_path)
         new_path = resign_apk(tmp_apk_path)
         os.remove(tmp_apk_path)
+        if need_zipalign:
+            logging.info("Zipalign apk %s" % new_path)
+            out_apk_path = "%s-aligned.apk" % new_path[:-4]
+            zipalign(new_path, out_apk_path)
+            os.remove(new_path)
+            new_path = out_apk_path
+            resign_apk_v2(new_path)
         out_apk_list.append(new_path)
+
     if len(out_apk_list) == 1:
         return out_apk_list[0]
     else:

@@ -16,18 +16,20 @@
 """Android自动化测试基类
 """
 
-import sys, os, platform
-import time
+import math
+import os
 import re
 import shutil
+import sys
 import tempfile
+import time
 import traceback
 
-import testbase.testcase as tc
+from PIL import Image, ImageDraw, ImageFont
+from testbase import testcase as tc
 from testbase import logger as qta_logger
 from testbase.testresult import EnumLogLevel
 from testbase.conf import settings
-from tuia.env import run_env, EnumEnvType
 
 from qt4a.androiddriver import util
 from qt4a.device import Device, DeviceProviderManager
@@ -52,6 +54,24 @@ def get_valid_file_name(file_name):
     for c in (":", "?"):
         file_name = file_name.replace(c, "_")
     return file_name
+
+
+def get_font(font_size):
+    """获取指定大小的任一字体"""
+    if sys.platform == "win32":
+        font_dir = r"C:\Windows\Fonts"
+    elif sys.platform == "darwin":
+        font_dir = "/Library/Fonts"
+    else:
+        font_dir = "/usr/share/fonts/truetype"
+
+    for root, dirs, files in os.walk(font_dir):
+        for file in files:
+            if file.endswith(".ttf") or file.endswith(".otf"):
+                font_path = os.path.join(root, file)
+                return ImageFont.truetype(font_path, font_size)
+
+    return ImageFont.load_default()
 
 
 class AndroidTestBase(tc.TestCase):
@@ -155,6 +175,7 @@ class AndroidTestBase(tc.TestCase):
                 device.modify_hosts(host_list)
 
         self.add_logcat_callback(device)
+        device.adb.start_logcat()
 
         if (
             hasattr(settings, "QT4A_RECORD_SCREEN")
@@ -164,6 +185,7 @@ class AndroidTestBase(tc.TestCase):
                 self._record_thread_status_dict = {}
             self._record_thread_status_dict[device.device_id] = False
             qta_logger.info("%s start record screen thread" % device.device_id)
+            # self._record_screen_thread(device)
             t = util.ThreadEx(
                 target=self._record_screen_thread,
                 args=(device,),
@@ -171,7 +193,7 @@ class AndroidTestBase(tc.TestCase):
             )
             t.setDaemon(True)
             t.start()
-        device.adb.start_logcat()
+
         return device
 
     def get_extra_fail_record(self):
@@ -218,72 +240,77 @@ class AndroidTestBase(tc.TestCase):
         device.take_screen_shot(path)
         self.test_result.info(info, attachments={"截图": path})
 
-    def _record_screen_thread(self, device):
+    def _record_screen_thread(self, device, interval=1):
         """录屏线程
         """
-        from qt4a.androiddriver.devicedriver import qt4a_path
-
-        record_time = 4 * 1000  # 每次录制的时间
-        framerate = 8
-        quality = 20
-        remote_tmp_path_tmpl = "%s/screen.record.%%d" % qt4a_path
-        max_record_file_count = 4  # 最大临时存储的录屏文件数目
-        index = 0
-        device.delete_file("%s/screen.record.*" % qt4a_path)
+        time.sleep(2)  # 等待初始化完成
+        save_dir = tempfile.mkdtemp(prefix="screen-")
 
         while (
             not hasattr(self, "_run_test_complete") or self._run_test_complete == False
         ):
             # 尚未结束
-            remote_tmp_path = remote_tmp_path_tmpl % (index % max_record_file_count)
-            device.run_shell_cmd(
-                "%s/screenshot record -p %s -t %d -f %d -q %d"
-                % (qt4a_path, remote_tmp_path, record_time, framerate, quality)
-            )
-            index += 1
-            if index >= max_record_file_count:
-                index -= max_record_file_count
+            time0 = time.time()
+            path = os.path.join(save_dir, "%d.png" % int(time0))
+            device.take_screen_shot(path)
+            time.sleep(max(interval - time.time() + time0, 0))
 
-        if not self.test_result.passed:
-            merge_file_list = []
-            for i in range(max_record_file_count):
-                merge_file_list.append(
-                    remote_tmp_path_tmpl % ((i + index) % max_record_file_count)
-                )
-            device.run_shell_cmd(
-                "cat %s > %s"
-                % (
-                    " ".join(merge_file_list),
-                    remote_tmp_path_tmpl % max_record_file_count,
-                )
-            )
-            local_tmp_path = tempfile.mktemp(".record")
-            device.pull_file(
-                remote_tmp_path_tmpl % max_record_file_count, local_tmp_path
-            )
-            save_dir = tempfile.mkdtemp(".screenshot")
-            frame_list = Device.extract_record_frame(local_tmp_path, save_dir)
-            video_path = (
-                self.__class__.__name__
-                + "_"
-                + get_valid_file_name(device.device_id)
-                + "_"
-                + str(int(time.time()))
-                + ".mp4"
-            )
-            result = Device.screen_frame_to_video(frame_list, framerate, video_path)
-            if result == None:
-                qta_logger.warn("opencv not installed")
-            else:
-                self.test_result.info("最近15秒录屏", attachments={video_path: video_path})
-            shutil.rmtree(save_dir)
+        file_list = []
+        for it in os.listdir(save_dir):
+            file_list.append(it)
+        file_list.sort()
+        image = Image.open(os.path.join(save_dir, file_list[0]))
+        image_width, image_height = image.size
+        max_width = 500
+        scale = 1
+        if image.width > max_width:
+            image_width = max_width
+            scale = max_width / image.width
+            image_height = int(scale * image.height)
+
+        row_image_count = 6  # 每行的图片数
+        col_image_count = int(math.ceil(len(file_list) / row_image_count))
+        x_sep = 5
+        y_sep = 30
+        total_width = image_width * row_image_count + x_sep * (row_image_count - 1)
+        total_height = (image_height + y_sep) * col_image_count
+        new_image = Image.new("RGB", (total_width, total_height), (255, 255, 255))
+        for i, it in enumerate(file_list):
+            create_time = int(it.split(".")[0])
+            image = Image.open(os.path.join(save_dir, it))
+            if scale < 1:
+                image = image.resize((image_width, image_height))
+            x = (image_width + x_sep) * (i % row_image_count)
+            y = (image_height + y_sep) * (i // row_image_count)
+            new_image.paste(image, (x, y))
+            draw = ImageDraw.Draw(new_image)
+            font = get_font(24)
+            x += 100
+            y += image.height + 3
+            time_struct = time.localtime(create_time)
+            text = time.strftime("%Y-%m-%d %H:%M:%S", time_struct)
+            draw.text((x, y), text, font=font, fill="red")
+
+        save_path = (
+            self.__class__.__name__
+            + "_"
+            + get_valid_file_name(device.device_id)
+            + "_"
+            + str(int(time.time()))
+            + ".jpg"
+        )
+        new_image.save(save_path, quality=20)
+        self.test_result.info(
+            "设备录屏", attachments={"%s的录屏" % device.device_id: save_path}
+        )
+        shutil.rmtree(save_dir)
 
         self._record_thread_status_dict[device.device_id] = True
 
     def _save_qt4a_log(self):
         """保存QT4A日志
         """
-        if run_env == EnumEnvType.Lab or (
+        if (
             hasattr(settings, "QT4A_UPLOAD_QT4A_LOG")
             and settings.QT4A_UPLOAD_QT4A_LOG == True
         ):
