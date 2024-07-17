@@ -16,6 +16,7 @@
 """Android设备驱动
 """
 
+import base64
 import json
 import re
 import os
@@ -303,32 +304,39 @@ class DeviceDriver(object):
         width, height = result.split(",")
         return int(width), int(height)
 
-    def _take_screen_shot(self, path, _format="png", quality=90):
+    def _take_screenshot_by_screencap(self, _format="png", quality=75):
+        """使用screencap命令截图
         """
-        使用android系统命令截图
-        # todo:使用android的java接口替换该方案
-        """
-        # result = self.adb.run_shell_cmd(
-        #     "sh %s/SpyHelper.sh takeScreenshot %s %s %s" % (qt4a_path, path, _format, quality), self.adb.is_rooted())
-        # if 'true' in result:
-        #     return True
-        # logger.warn("Take screenshot by SpyHelper.sh failed: %s" % result)
         try:
             return self.adb.run_shell_cmd("screencap -p", binary_output=True)
         except Exception as e:
             logger.warn("Take screenshot failed: %s" % traceback.format_exc(e))
             return False
 
+    def _take_screenshot_by_driver(self, _format="jpg", quality=90):
+        """
+        使用android系统命令截图
+        # todo:使用android的java接口替换该方案
+        """
+        time0 = time.time()
+        result = self._send_command(
+            "TakeScreenshot", SavePath="/dev/stdout", Format=_format, Quality=quality
+        )
+        if isinstance(result, str):
+            result = base64.b64decode(result)
+            logger.info("Take screenshot by driver cost %.2fs" % (time.time() - time0))
+        # result = self.adb.run_shell_cmd(
+        #     "sh %s/SpyHelper.sh takeScreenshot /dev/stdout %s %s" % (qt4a_path, _format, quality), binary_output=True)
+        return result
+
     def take_screen_shot(self, path, quality=90):
         """截屏
         """
-        if self.adb.get_sdk_version() >= 29:
-            result = self._take_screen_shot(path)
-        else:
-            result = self.adb.run_shell_cmd(
-                "%s/screenshot capture -q %s" % (qt4a_path, quality), binary_output=True
-            )
+        _format = path.split(".")[-1]
+        result = self._take_screenshot_by_driver(_format, quality)
         # 为避免pull文件耗时，直接写到stdout
+        if not isinstance(result, bytes):
+            result = self._take_screenshot_by_screencap(_format, quality)
         if len(result) < 256:
             logger.warn("Take screenshot failed: %s" % result)
             return False
@@ -388,21 +396,21 @@ class DeviceDriver(object):
     def _run_server(self, server_name):
         """运行系统测试桩
         """
-        if not self.adb.is_rooted():
-            try:
-                self.adb.start_service(
-                    "%s/.service.HelperService" % server_name,
-                    {"serviceName": server_name},
-                )
-            except RuntimeError:
-                logger.warn("start helper server failed")
-                self.adb.start_activity(
-                    "%s/.activity.StartServiceActivity" % server_name,
-                    extra={"serviceName": "HelperService"},
-                    wait=False,
-                )
-                time.sleep(1)
-            return self._server_opend()
+        # if not self.adb.is_rooted():
+        #     try:
+        #         self.adb.start_service(
+        #             "%s/.service.HelperService" % server_name,
+        #             {"serviceName": server_name},
+        #         )
+        #     except RuntimeError:
+        #         logger.warn("start helper server failed")
+        #         self.adb.start_activity(
+        #             "%s/.activity.StartServiceActivity" % server_name,
+        #             extra={"serviceName": "HelperService"},
+        #             wait=False,
+        #         )
+        #         time.sleep(1)
+        #     return self._server_opend()
 
         timeout = 10
         time0 = time.time()
@@ -500,6 +508,10 @@ class DeviceDriver(object):
             raise RuntimeError(result["Error"])
         if not "Result" in result:
             raise RuntimeError("%s返回结果错误：%s" % (cmd_type, result))
+        logger.debug(
+            "[%s] Command %s cost %dms"
+            % (self.__class__.__name__, cmd_type, result.get("HandleTime", 0))
+        )
         return result["Result"]
 
     def hello(self):
