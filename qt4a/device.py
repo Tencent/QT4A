@@ -573,13 +573,13 @@ class Device(object):
         """
         return self._device_driver.get_current_activity()
 
-    def take_screen_shot(self, save_path):
+    def take_screen_shot(self, save_path, quality=90):
         """截屏
         
         :param save_path: 截屏图片存放在PC上的路径
         :type save_path: string
         """
-        return self._device_driver.take_screen_shot(save_path)
+        return self._device_driver.take_screen_shot(save_path, quality=quality)
 
     def record_screen(self, save_path, record_time, frame_rate=10, quality=20):
         """录屏
