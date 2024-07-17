@@ -28,6 +28,7 @@ import traceback
 from PIL import Image, ImageDraw, ImageFont
 from testbase import testcase as tc
 from testbase import logger as qta_logger
+from testbase.resource import ResourceNotAvailable
 from testbase.testresult import EnumLogLevel
 from testbase.conf import settings
 
@@ -143,7 +144,22 @@ class AndroidTestBase(tc.TestCase):
         """
         if device_id:
             kwargs["id"] = device_id
-        resource = self.test_resources.acquire_resource("android", condition=kwargs)
+        timeout = 1
+        if hasattr(settings, "QT4A_ACQUIRE_DEVICE_TIMEOUT"):
+            timeout = settings.QT4A_ACQUIRE_DEVICE_TIMEOUT
+        time0 = time.time()
+        exp = None
+        while time.time() - time0 < timeout:
+            try:
+                resource = self.test_resources.acquire_resource("android", condition=kwargs)
+            except ResourceNotAvailable as ex:
+                exp = ex
+                time.sleep(1)
+            else:
+                break
+        else:
+            raise exp
+
         util.logger.debug("Device info: %s" % resource)
         device = DeviceProviderManager().connect_device(resource)
         if not device:
@@ -251,8 +267,8 @@ class AndroidTestBase(tc.TestCase):
         ):
             # 尚未结束
             time0 = time.time()
-            path = os.path.join(save_dir, "%d.png" % int(time0))
-            device.take_screen_shot(path)
+            path = os.path.join(save_dir, "%d.jpg" % int(time0))
+            device.take_screen_shot(path, 50)
             time.sleep(max(interval - time.time() + time0, 0))
 
         file_list = []
