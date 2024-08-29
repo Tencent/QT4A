@@ -97,7 +97,7 @@ class AndroidTestBase(tc.TestCase):
             hasattr(self, "_record_thread_status_dict")
             and self._record_thread_status_dict
         ):
-            timeout = 30
+            timeout = 60
             time0 = time.time()
             while time.time() - time0 < timeout:
                 for key in self._record_thread_status_dict:
@@ -277,21 +277,25 @@ class AndroidTestBase(tc.TestCase):
         file_list.sort()
         image = Image.open(os.path.join(save_dir, file_list[0]))
         image_width, image_height = image.size
-        max_width = 500
+        max_width = 400
         scale = 1
         if image.width > max_width:
             image_width = max_width
             scale = max_width / image.width
             image_height = int(scale * image.height)
 
-        row_image_count = 6  # 每行的图片数
+        row_image_count = 4  # 每行的图片数
         col_image_count = int(math.ceil(len(file_list) / row_image_count))
         x_sep = 5
         y_sep = 30
         total_width = image_width * row_image_count + x_sep * (row_image_count - 1)
         total_height = (image_height + y_sep) * col_image_count
-        new_image = Image.new("RGB", (total_width, total_height), (255, 255, 255))
-        for i, it in enumerate(file_list):
+        new_image = Image.new("RGB", (total_width, total_height), (240, 240, 240))
+        step = 1
+        if len(file_list) > 300:
+            step = 2
+        for i in range(0, len(file_list), step):
+            it = file_list[i]
             create_time = int(it.split(".")[0])
             image = Image.open(os.path.join(save_dir, it))
             if scale < 1:
@@ -301,7 +305,7 @@ class AndroidTestBase(tc.TestCase):
             new_image.paste(image, (x, y))
             draw = ImageDraw.Draw(new_image)
             font = get_font(24)
-            x += 100
+            x += 50
             y += image.height + 3
             time_struct = time.localtime(create_time)
             text = time.strftime("%Y-%m-%d %H:%M:%S", time_struct)
@@ -315,7 +319,7 @@ class AndroidTestBase(tc.TestCase):
             + str(int(time.time()))
             + ".jpg"
         )
-        new_image.save(save_path, quality=20)
+        new_image.save(save_path, quality=50)
         self.test_result.info(
             "设备录屏", attachments={"%s的录屏" % device.device_id: save_path}
         )
