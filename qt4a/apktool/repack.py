@@ -25,7 +25,6 @@ import tempfile
 
 from qt4a.apktool.apkfile import APKFile
 from qt4a.apktool.manifest import AndroidManifest
-from qt4a.apktool.zipalign import zipalign
 
 
 class MergeDexError(RuntimeError):
@@ -328,8 +327,8 @@ def repack_apk(
             logging.warning("WARNING: APK can only be installed in android above 5.0")
             manifest.min_sdk_version = 21
 
-        if manifest.target_sdk_version > 30:
-            need_zipalign = True
+        # if manifest.target_sdk_version > 30:
+        #     need_zipalign = True
 
         manifest.save()
 
@@ -372,13 +371,13 @@ def repack_apk(
         apk_file.save(tmp_apk_path)
         new_path = resign_apk(tmp_apk_path)
         os.remove(tmp_apk_path)
-        if need_zipalign:
-            logging.info("Zipalign apk %s" % new_path)
-            out_apk_path = "%s-aligned.apk" % new_path[:-4]
-            zipalign(new_path, out_apk_path)
-            os.remove(new_path)
-            new_path = out_apk_path
-            resign_apk_v2(new_path)
+        # if need_zipalign:
+        #     logging.info("Zipalign apk %s" % new_path)
+        #     out_apk_path = "%s-aligned.apk" % new_path[:-4]
+        #     zipalign(new_path, out_apk_path)
+        #     os.remove(new_path)
+        #     new_path = out_apk_path
+        #     resign_apk_v2(new_path)
         out_apk_list.append(new_path)
 
     if len(out_apk_list) == 1:
