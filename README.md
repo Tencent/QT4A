@@ -25,6 +25,12 @@ QT4A should be used with [QTAF](https://github.com/Tencent/QTAF), please check i
 * [Design Document](https://github.com/Tencent/QT4A/blob/master/design.md)
 * [AndroidUISpy Tool](https://github.com/qtacore/AndroidUISpy/blob/master/usage.md)
 
+### Statement
+
+QT4A of version 3.2.0-3.2.2 employed the https://github.com/obfusk/reproducible-apk-tools/blob/284dd69ac46e804e643b1014049993207f0768fa/zipalign.py, Copyright (C) 2024 FC (Fay) Stegerman flx@obfusk.net, which is subject to GPL v3（https://github.com/obfusk/reproducible-apk-tools/blob/284dd69ac46e804e643b1014049993207f0768fa/LICENSE.GPLv3）.
+
+Thus, we kindly ask you to adhere to GPL v3 when using Version 3.2.0-3.2.2 of QT4A.
+
 ------------------------------
 
 QT4A (Quick Test for Android)，基于QTA提供面向Android应用的UI测试自动化测试解决方案。
